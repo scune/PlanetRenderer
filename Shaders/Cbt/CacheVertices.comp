@@ -1,0 +1,288 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+#include "../PlanetVertex.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) readonly buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 3, scalar) readonly buffer HalfedgeBuffer
+{
+  Halfedge halfedges[];
+};
+
+layout(binding = 5) readonly buffer RootVertices
+{
+  vec4 rootVertices[];
+};
+
+layout(binding = 7, scalar) writeonly buffer OutVertices
+{
+  uint vertexCount;
+  uint instanceCount;
+  uint firstVertex;
+  uint firstInstance;
+  PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 8) uniform GlobalUpdate
+{
+  mat4 camMatrix;
+  vec4 frustumPlanes[4];
+  vec4 camPos;
+};
+
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec2 debugData[];
+};
+
+layout(push_constant, scalar) uniform PushConstant
+{
+  layout(offset = 4)
+  uint maxSubdivision;
+  uint minDepth;
+  uint baseBisectorIndex;
+  uint pixelCount;
+  float planetScale;
+  float baseFbmFrequency;
+  float baseFbmAmplitude;
+  float noiseTopGridSize;
+};
+
+
+
+mat3 RootBisectorVertices(uint halfedgeID)
+{
+  halfedgeID -= baseBisectorIndex;
+  uint next = halfedges[halfedgeID].next;
+
+  const vec3 v0 = rootVertices[halfedges[halfedgeID].vert].xyz;
+  const vec3 v1 = rootVertices[halfedges[next].vert].xyz;
+  vec3 v2 = v0;
+
+  float n = 1.f;
+  uint h = next;
+  while (h != halfedgeID)
+  {
+    v2 += rootVertices[halfedges[h].vert].xyz;
+    n++;
+    h = halfedges[h].next;
+  }
+  v2 /= n;
+
+  return mat3(v0, v1, v2);
+}
+
+mat3 BisectorVertices(const uint64_t bisectorIndex, const uint bisectorDepth, out vec3 parentVertex)
+{
+  const mat3 m0 = mat3(0.f, 1.f, 0.5f,
+                       0.f, 0.f, 0.5f,
+                       1.f, 0.f, 0.f);
+
+  const mat3 m1 = mat3(0.f, 0.f, 0.5f,
+                       1.f, 0.f, 0.5f,
+                       0.f, 1.f, 0.f);
+
+  const uint halfedgeID = uint(bisectorIndex >> bisectorDepth); // Root bisector index
+  const uint64_t h = bisectorIndex; // Halfedge index
+
+  mat3 rootVecs = RootBisectorVertices(halfedgeID);
+  if (bisectorDepth == 0)
+    return rootVecs;
+
+  mat3 m = mat3(1.f);
+  for (uint d = 1; d < bisectorDepth; d++) // Compute subd. matrix
+  {
+    bool b = (h & (1ul << d)) != 0;
+    m *= (b ? m1 : m0);
+  }
+
+  mat3 parentVertices = transpose(m * transpose(rootVecs));
+  bool b = (h & 1ul) != 0;
+  if (b)
+  {
+    parentVertex = parentVertices[0];
+  }
+  else
+  {
+    parentVertex = parentVertices[1];
+  }
+  return transpose((b ? m1 : m0) * transpose(parentVertices));
+}
+
+// Converts a random uint to a random float in [0, 1).
+// https://github.com/rust-random/rand/blob/7aa25d577e2df84a5156f824077bb7f6bdf28d97/src/distributions/float.rs#L111-L117
+float UintToUnitFloat(const uint i)
+{
+  // 32 - 8 = 24 (exponent), 1.0 / (1 << 24) = 5.9604644775390625e-08
+  // top bits are usually more random.
+  return (i >> 8) * 5.9604644775390625e-08;
+}
+
+uvec3 Pcg3d(uvec3 v)
+{
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  return v;
+}
+
+vec3 Hash(ivec3 u)
+{
+  u = ivec3(Pcg3d(uvec3(u)));
+  vec3 v;
+  v.x = UintToUnitFloat(u.x);
+  v.y = UintToUnitFloat(u.y);
+  v.z = UintToUnitFloat(u.z);
+  return v * 2.f - 1.f;
+}
+
+vec4 Displace(vec3 v)
+{
+  // Grid
+  ivec3 i = ivec3(floor(v));
+  vec3 f = fract(v);
+
+  // Quintic interpolant
+  vec3 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
+  vec3 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
+
+  // Gradients
+  vec3 ga = Hash(i + ivec3(0, 0, 0));
+  vec3 gb = Hash(i + ivec3(1, 0, 0));
+  vec3 gc = Hash(i + ivec3(0, 1, 0));
+  vec3 gd = Hash(i + ivec3(1, 1, 0));
+  vec3 ge = Hash(i + ivec3(0, 0, 1));
+  vec3 gf = Hash(i + ivec3(1, 0, 1));
+  vec3 gg = Hash(i + ivec3(0, 1, 1));
+  vec3 gh = Hash(i + ivec3(1, 1, 1));
+
+  // Projections
+  float va = dot(ga, f - vec3(0.f, 0.f, 0.f));
+  float vb = dot(gb, f - vec3(1.f, 0.f, 0.f));
+  float vc = dot(gc, f - vec3(0.f, 1.f, 0.f));
+  float vd = dot(gd, f - vec3(1.f, 1.f, 0.f));
+  float ve = dot(ge, f - vec3(0.f, 0.f, 1.f));
+  float vf = dot(gf, f - vec3(1.f, 0.f, 1.f));
+  float vg = dot(gg, f - vec3(0.f, 1.f, 1.f));
+  float vh = dot(gh, f - vec3(1.f, 1.f, 1.f));
+
+  // Interpolation
+  float x = va +
+            u.x * (vb - va) +
+            u.y * (vc - va) +
+            u.z * (ve - va) +
+            u.x * u.y * (va - vb - vc + vd) +
+            u.y * u.z * (va - vc - ve + vg) +
+            u.z * u.x * (va - vb - ve + vf) +
+            u.x * u.y * u.z * (-va + vb + vc - vd + ve - vf - vg + vh);
+
+  // Derivative
+  vec3 d = ga +
+    u.x * (gb - ga) +
+    u.y * (gc - ga) +
+    u.z * (ge - ga) +
+    u.x * u.y * (ga - gb - gc + gd) +
+    u.y * u.z * (ga - gc - ge + gg) +
+    u.z * u.x * (ga - gb - ge + gf) +
+    u.x * u.y * u.z * (-ga + gb + gc - gd + ge - gf - gg + gh) +
+    du * (vec3(vb - va, vc - va, ve - va) +
+    u.yzx * vec3(va - vb - vc + vd, va - vc - ve + vg,va - vb - ve + vf) +
+    u.zxy * vec3(va - vb - ve + vf, va - vb - vc + vd,va - vc - ve + vg) +
+    u.yzx * u.zxy * (-va + vb + vc - vd + ve - vf - vg + vh));
+
+  return vec4(x, d);
+}
+
+vec3 Terrain(vec3 v, inout vec3 normal)
+{
+  v = normalize(v); // Sphere
+
+  float H = 0.7f;
+  float G = exp2(-H);
+  float f = baseFbmFrequency;
+  float a = baseFbmAmplitude;
+  float t = 0.f;
+  vec3 d = vec3(0.f);
+  normal = vec3(0.f);
+  for(uint i = 0; i < 10; i++)
+  {
+    vec4 vd = Displace(v * f);
+    d += vd.yzw;
+    normal += a * vd.yzw / (1.f + dot(d, d));
+    //normal += a * vd.yzw;
+    t += a * vd.x / (1.f + dot(d, d));
+    f *= 2.f;
+    a *= G;
+  }
+
+  // t ~ ]-baseFbmAmplitude,baseFbmAmplitude[
+  return t * v * (planetScale * 0.03f) + v * planetScale;
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x == 0)
+  {
+    //debugPrintfEXT("Bisector count: %u", cbt.tree[1]);
+    vertexCount = cbt.tree[1] * 3;
+    instanceCount = 1;
+  }
+
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  uint64_t bisectorIndex = bisectors[bisectorID].index;
+  uint bisectorFlags = bisectors[bisectorID].flags;
+  uint depth = BisectorDepth(bisectorIndex, minDepth);
+
+  vec3 parentVertex = vec3(0.f);
+  mat3 v = BisectorVertices(bisectorIndex, depth, parentVertex);
+
+  if (parentVertex != vec3(0.f))
+  {
+    vec3 parentD;
+    parentVertex = Terrain(parentVertex, parentD);
+    // parentVertex = normalize(parentVertex) * planetScale;
+  }
+
+  uint vertexOffset = gl_GlobalInvocationID.x * 3;
+  for (uint i = 0; i < 3; i++)
+  {
+    vec3 d;
+    v[i] = Terrain(v[i], d);
+    // v[i] = normalize(v[i]) * planetScale;
+
+    outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);
+    outVertices[vertexOffset + i].normal = vec4(normalize(d), 1.f);
+  }
+}

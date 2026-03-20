@@ -1,0 +1,222 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 6) readonly buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint cmd = bisectorCommands[bisectorID];
+  if (cmd == BISECTOR_CMD_KEEP)
+  {
+    bisectors[bisectorID].flags = 0;
+    return;
+  }
+  const Bisector b = bisectors[bisectorID];
+
+  if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+      (cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0) // 4 Children
+  {
+    Bisector lr = InitializeBisector(); // Left right
+    lr.index = b.index << 2;
+    lr.index += 1;
+    lr.next = b.unusedMemIDs[2];
+    lr.prev = bisectors[b.prev].unusedMemIDs[0];
+    lr.twin = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[1]
+                  : BISECTOR_NULLPTR;
+    lr.flags = b.flags;
+    bisectors[b.unusedMemIDs[0]] = lr;
+
+    Bisector rl = InitializeBisector(); // Right left
+    rl.index = b.index << 1;
+    rl.index += 1;
+    rl.index <<= 1;
+    rl.next = bisectors[b.next].unusedMemIDs[1];
+    rl.prev = b.unusedMemIDs[3];
+    rl.twin = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[0]
+                  : BISECTOR_NULLPTR;
+    rl.flags = b.flags;
+    bisectors[b.unusedMemIDs[1]] = rl;
+
+    Bisector ll = InitializeBisector(); // Left left
+    ll.index = b.index << 2;
+    ll.next = bisectors[b.prev].unusedMemIDs[1];
+    ll.prev = b.unusedMemIDs[0];
+    ll.twin = b.unusedMemIDs[3];
+    ll.flags = b.flags;
+    bisectors[b.unusedMemIDs[2]] = ll;
+
+    Bisector rr = InitializeBisector(); // Right right
+    rr.index = b.index << 1;
+    rr.index += 1;
+    rr.index <<= 1;
+    rr.index += 1;
+    rr.next = b.unusedMemIDs[1];
+    rr.prev = bisectors[b.next].unusedMemIDs[0];
+    rr.twin = b.unusedMemIDs[2];
+    rr.flags = b.flags;
+    bisectors[b.unusedMemIDs[3]] = rr;
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0) // Only right split
+  {
+    Bisector ll = InitializeBisector(); // Left
+    ll.index = b.index << 1;
+    ll.next = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[1]
+                  : BISECTOR_NULLPTR;
+    ll.prev = b.unusedMemIDs[2];
+    ll.twin = b.prev;
+    ll.flags = b.flags;
+    bisectors[b.unusedMemIDs[0]] = ll;
+
+    Bisector rl = InitializeBisector(); // Right left
+    rl.index = b.index << 1;
+    rl.index += 1;
+    rl.index <<= 1;
+    rl.next = bisectors[b.next].unusedMemIDs[1];
+    rl.prev = b.unusedMemIDs[2];
+    rl.twin = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[0]
+                  : BISECTOR_NULLPTR;
+    rl.flags = b.flags;
+    bisectors[b.unusedMemIDs[1]] = rl;
+
+    Bisector rr = InitializeBisector(); // Right right
+    rr.index = b.index << 1;
+    rr.index += 1;
+    rr.index <<= 1;
+    rr.index += 1;
+    rr.next = b.unusedMemIDs[1];
+    rr.prev = bisectors[b.next].unusedMemIDs[0];
+    rr.twin = b.unusedMemIDs[0];
+    rr.flags = b.flags;
+    bisectors[b.unusedMemIDs[2]] = rr;
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0) // Only left split
+  {
+    Bisector lr = InitializeBisector(); // Left right
+    lr.index = b.index << 2;
+    lr.index += 1;
+    lr.next = b.unusedMemIDs[2];
+    lr.prev = bisectors[b.prev].unusedMemIDs[0];
+    lr.twin = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[1]
+                  : BISECTOR_NULLPTR;
+    lr.flags = b.flags;
+    bisectors[b.unusedMemIDs[0]] = lr;
+
+    Bisector r = InitializeBisector(); // Right
+    r.index = b.index << 1;
+    r.index += 1;
+    r.next = b.unusedMemIDs[2];
+    r.prev = (b.twin != BISECTOR_NULLPTR)
+                 ? bisectors[b.twin].unusedMemIDs[0]
+                 : BISECTOR_NULLPTR;
+    r.twin = b.next;
+    r.flags = b.flags;
+    bisectors[b.unusedMemIDs[1]] = r;
+
+    Bisector ll = InitializeBisector(); // Left left
+    ll.index = b.index << 2;
+    ll.next = bisectors[b.prev].unusedMemIDs[1];
+    ll.prev = b.unusedMemIDs[0];
+    ll.twin = b.unusedMemIDs[1];
+    ll.flags = b.flags;
+    bisectors[b.unusedMemIDs[2]] = ll;
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_0) != 0)
+  {
+    Bisector ll = InitializeBisector(); // Left
+    ll.index = b.index << 1;
+    ll.next = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[1]
+                  : BISECTOR_NULLPTR;
+    ll.prev = b.unusedMemIDs[1];
+    ll.twin = b.prev;
+    ll.flags = b.flags;
+    bisectors[b.unusedMemIDs[0]] = ll;
+
+    Bisector lr = InitializeBisector(); // Right
+    lr.index = b.index << 1;
+    lr.index += 1;
+    lr.next = b.unusedMemIDs[0];
+    lr.prev = (b.twin != BISECTOR_NULLPTR)
+                  ? bisectors[b.twin].unusedMemIDs[0]
+                  : BISECTOR_NULLPTR;
+    lr.twin = b.next;
+    lr.flags = b.flags;
+    bisectors[b.unusedMemIDs[1]] = lr;
+  }
+  else if ((cmd & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+  {
+    Bisector b2 = bisectors[b.prev];
+
+    if ((cmd & BISECTOR_CMD_MERGE_BOUNDARY) != 0)
+    {
+      Bisector parent = InitializeBisector();
+      parent.index = b.index >> 1;
+      parent.next = b2.twin;
+      parent.prev = b.twin;
+      parent.twin = BISECTOR_NULLPTR;
+      parent.flags = b.flags;
+      bisectors[b.unusedMemIDs[0]] = parent;
+    }
+    else if ((cmd & BISECTOR_CMD_MERGE_NON_BOUNDARY) != 0)
+    {
+      Bisector left = InitializeBisector();
+      left.index = b.index >> 1;
+      left.next = b2.twin;
+      left.prev = b.twin;
+      left.twin = b.unusedMemIDs[1];
+      left.flags = b.flags;
+      bisectors[b.unusedMemIDs[0]] = left;
+
+      Bisector b3 = bisectors[b.next];
+      Bisector b4 = bisectors[b3.next];
+
+      Bisector right = InitializeBisector();
+      right.index = b4.index >> 1;
+      right.next = b3.twin;
+      right.prev = b4.twin;
+      right.twin = b.unusedMemIDs[0];
+      right.flags = b.flags;
+      bisectors[b.unusedMemIDs[1]] = right;
+    }
+  }
+}

@@ -1,0 +1,4 @@
+Planet Rendering:
+
+Dreieck-vertices als noise value generators (Vorher auf sphere projezieren!).
+LEB matrices für noise value interpolation benutzten.

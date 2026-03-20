@@ -1,0 +1,7 @@
+testApp
+compile_commands.json
+cmake_install.cmake
+Makefile
+/CMakeFiles
+CMakeCache.txt
+/.cache

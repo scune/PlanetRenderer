@@ -1,0 +1,277 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 4) buffer AllocationCounter
+{
+  int allocCounter;
+};
+
+layout(binding = 6) buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+layout(push_constant, scalar) uniform PushConstant
+{
+  layout(offset = 4)
+  uint maxSubdivision;
+  uint minDepth;
+  uint baseBisectorIndex;
+};
+
+
+
+int Refine(uint id, uint twinID, uint currDepth)
+{
+  uint cmd = atomicOr(bisectorCommands[id], BISECTOR_CMD_SPLIT_EDGE_0);
+  if (AnySplit(cmd))
+    return 0;
+
+  int requiredMem = 2;
+
+  while (true)
+  {
+    if (twinID == BISECTOR_NULLPTR)
+      break;
+
+    Bisector twin = bisectors[twinID];
+    uint twinDepth = BisectorDepth(twin.index, minDepth);
+
+    if (currDepth == twinDepth)
+    {
+      const uint oldCmd = atomicOr(bisectorCommands[twinID], BISECTOR_CMD_SPLIT_EDGE_0);
+
+      if (!AnySplit(oldCmd))
+      {
+        requiredMem += 2;
+      }
+      break;
+    }
+    else
+    {
+      uint oldCmd;
+      if (twin.next == id)
+      {
+        oldCmd = atomicOr(bisectorCommands[twinID], BISECTOR_CMD_SPLIT_EDGE_1);
+      }
+      else
+      {
+        oldCmd = atomicOr(bisectorCommands[twinID], BISECTOR_CMD_SPLIT_EDGE_2);
+      }
+
+      if (AnySplit(oldCmd))
+      {
+        requiredMem++;
+        break;
+      }
+      else
+      {
+        requiredMem += 3;
+
+        id = twinID;
+        currDepth = twinDepth;
+        twinID = twin.twin;
+      }
+    }
+  }
+
+  return requiredMem;
+}
+
+void TagSmallestIdx(bool bitValue, uint id1, uint id2)
+{
+  atomicOr(bisectorCommands[bitValue ? id2 : id1],
+           BISECTOR_CMD_MERGE_SMALLEST_ID);
+}
+
+void TagSmallestIdx(bool bitValue, uint id1, uint64_t index1,
+                   uint id2, uint64_t index2, uint id3,
+                   uint64_t index3, uint id4, uint64_t index4)
+{
+  if (bitValue)
+  {
+    if (index2 < index3)
+    {
+      atomicOr(bisectorCommands[id2],
+               BISECTOR_CMD_MERGE_SMALLEST_ID);
+    }
+    else
+    {
+      atomicOr(bisectorCommands[id3],
+               BISECTOR_CMD_MERGE_SMALLEST_ID);
+    }
+  }
+  else
+  {
+    if (index1 < index4)
+    {
+      atomicOr(bisectorCommands[id1],
+               BISECTOR_CMD_MERGE_SMALLEST_ID);
+    }
+    else
+    {
+      atomicOr(bisectorCommands[id4],
+               BISECTOR_CMD_MERGE_SMALLEST_ID);
+    }
+  }
+}
+
+int Decimate(Bisector b1, uint id1)
+{
+  const bool bitValue = (b1.index & 1ul) == 1ul;
+  uint id2 = (bitValue) ? b1.next : b1.prev;
+  uint id3 = (bitValue) ? b1.prev : b1.next;
+
+  if (id2 == BISECTOR_NULLPTR)
+    return 0;
+
+  Bisector b2 = bisectors[id2];
+
+  if ((bisectorCommands[id2] & BISECTOR_CMD_MERGE) == 0)
+    return 0;
+
+  if ((b1.index >> 1ul) == (b2.index >> 1ul)) // If same parent
+  {
+    if (bitValue)
+    {
+      if (b2.prev != id1)
+        return 0;
+    }
+    else
+    {
+      if (b2.next != id1)
+        return 0;
+    }
+
+    if (id3 == BISECTOR_NULLPTR)
+    {
+      atomicOr(bisectorCommands[id1], BISECTOR_CMD_MERGE_BOUNDARY);
+      atomicOr(bisectorCommands[id2], BISECTOR_CMD_MERGE_BOUNDARY);
+      TagSmallestIdx(bitValue, id1, id2);
+      return 1;
+    }
+    else
+    {
+      Bisector b3 = bisectors[id3];
+
+      if ((bisectorCommands[id3] & BISECTOR_CMD_MERGE) == 0)
+        return 0;
+
+      if (FastFloorLog2(b1.index) == FastFloorLog2(b3.index)) // If same depth
+      {
+        uint id4 = (bitValue) ? b3.prev : b3.next;
+        if (id4 == BISECTOR_NULLPTR)
+          return 0;
+
+        Bisector b4 = bisectors[id4];
+        if ((bisectorCommands[id4] & BISECTOR_CMD_MERGE) == 0)
+          return 0;
+
+        if ((b3.index >> 1ul) == (b4.index >> 1ul)) // If same parent
+        {
+          if (bitValue)
+          {
+            if (b4.next != id3)
+              return 0;
+          }
+          else
+          {
+            if (b4.prev != id3)
+              return 0;
+          }
+
+          atomicOr(bisectorCommands[id1], BISECTOR_CMD_MERGE_NON_BOUNDARY);
+          atomicOr(bisectorCommands[id2], BISECTOR_CMD_MERGE_NON_BOUNDARY);
+          atomicOr(bisectorCommands[id3], BISECTOR_CMD_MERGE_NON_BOUNDARY);
+          atomicOr(bisectorCommands[id4], BISECTOR_CMD_MERGE_NON_BOUNDARY);
+          TagSmallestIdx(bitValue, id1, b1.index, id2, b2.index,
+                        id3, b3.index, id4, b4.index);
+          return 2;
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  uint cmd = bisectorCommands[bisectorID];
+  if (cmd == BISECTOR_CMD_KEEP)
+    return;
+
+  Bisector b = bisectors[bisectorID];
+
+  const int maxMem = int(BISECTOR_MAX_COUNT - cbt.tree[1]);
+  const uint depth = BisectorDepth(b.index, minDepth);
+
+  if (((cmd & BISECTOR_CMD_SPLIT) != 0) && (depth < maxSubdivision))
+  {
+    int maxRequiredMem = 3 * int(depth) + 4;
+    if (b.twin == BISECTOR_NULLPTR)
+    {
+      maxRequiredMem = 2;
+    }
+    else if (bisectors[b.twin].twin == bisectorID)
+    {
+      maxRequiredMem = 4;
+    }
+
+    int usedMem = atomicAdd(allocCounter, maxRequiredMem);
+    if (usedMem + maxRequiredMem > maxMem)
+    {
+      debugPrintfEXT("Out of mem!");
+      atomicAdd(allocCounter, -maxRequiredMem);
+      return;
+    }
+
+    int requiredMem = Refine(bisectorID, b.twin, depth);
+    atomicAdd(allocCounter, requiredMem - maxRequiredMem);
+  }
+  else if (((cmd & BISECTOR_CMD_MERGE) != 0) && (depth > 0))
+  {
+    const int maxRequiredMem = 2;
+
+    int usedMem = atomicAdd(allocCounter, maxRequiredMem);
+    if (usedMem + maxRequiredMem > maxMem)
+    {
+      debugPrintfEXT("Out of mem!");
+      atomicAdd(allocCounter, -maxRequiredMem);
+      return;
+    }
+
+    int requiredMem = Decimate(b, bisectorID);
+    atomicAdd(allocCounter, requiredMem - maxRequiredMem);
+  }
+}
