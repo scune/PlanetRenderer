@@ -1,0 +1,109 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) readonly buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 6) buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 9) buffer DebugBuffer
+{
+  uvec2 debugData[];
+};
+
+
+
+void BisectorResetMergeFlags(uint id)
+{
+  atomicAnd(bisectorCommands[id], ~BISECTOR_CMD_MERGE_ALL);
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  uint cmd = bisectorCommands[bisectorID];
+  if (cmd == BISECTOR_CMD_KEEP)
+    return;
+
+  atomicAnd(bisectorCommands[bisectorID], ~(BISECTOR_CMD_SPLIT | BISECTOR_CMD_MERGE));
+
+  Bisector b1 = bisectors[bisectorID];
+
+  // Validate
+  /*
+  if ((cmd & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+    {
+      if (b.next != BISECTOR_NULLPTR)
+        {
+          if ((bisectorCommands[b.next] & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+            {
+              debugPrintfEXT("Double id1");
+            }
+          if ((bisectorCommands[bisectors[b.next].next] & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+            {
+              debugPrintfEXT("Double id2");
+            }
+          if (bisectors[b.next].next == bisectorID)
+            {
+              debugPrintfEXT("Ich rast aus");
+            }
+        }
+      if (b.prev != BISECTOR_NULLPTR)
+        {
+          if ((bisectorCommands[b.prev] & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+            {
+              debugPrintfEXT("Double id3");
+            }
+        }
+    }*/
+
+  // Reset merge flags if split flags are set
+  if (AnySplit(cmd) && AnyMerge(cmd))
+  {
+    const bool bitValue = (b1.index & 1u) == 1u;
+    uint id2 = (bitValue) ? b1.next : b1.prev;
+    uint id3 = (bitValue) ? b1.prev : b1.next;
+
+    BisectorResetMergeFlags(id2); // b2
+
+    if ((cmd & BISECTOR_CMD_MERGE_NON_BOUNDARY) != 0)
+    {
+      uint b3_next = bisectors[id3].next;
+      uint b3_prev = bisectors[id3].prev;
+      uint id4 = (bitValue) ? b3_prev : b3_next;
+      BisectorResetMergeFlags(id3); // b3
+      BisectorResetMergeFlags(id4); // b4
+    }
+
+    BisectorResetMergeFlags(bisectorID); // b1
+  }
+}

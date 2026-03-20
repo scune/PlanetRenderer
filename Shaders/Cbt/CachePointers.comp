@@ -1,0 +1,50 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) writeonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+#include "GetCbtBitHelper.glsl"
+
+
+
+uint OneToBitID(uint index)
+{
+  uint bitID = 1;
+  const uint leafCount = BISECTOR_MAX_COUNT;
+  while (bitID < leafCount)
+  {
+    bitID <<= 1;
+
+    uint cbtValue = GetCbtBitHelper(bitID);
+    if (index >= cbtValue)
+    {
+      index -= cbtValue;
+      bitID++;
+    }
+  }
+  return bitID - leafCount;
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  activeBisectors[gl_GlobalInvocationID.x] = OneToBitID(gl_GlobalInvocationID.x);
+}

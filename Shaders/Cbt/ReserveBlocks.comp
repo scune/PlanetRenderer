@@ -1,0 +1,138 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 4) buffer AllocationCounter
+{
+  int allocCounter;
+};
+
+layout(binding = 6) buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 9) buffer DebugBuffer
+{
+  uvec2 debugData[];
+};
+
+#include "GetCbtBitHelper.glsl"
+
+
+
+uint ZeroToBitID(uint index)
+{
+  uint bitID = 1;
+  const uint leafCount = BISECTOR_MAX_COUNT;
+  uint c = 1u << (CBT_DEPTH - 1);
+  while (bitID < leafCount)
+  {
+    bitID <<= 1;
+
+    uint cbtValue = c - GetCbtBitHelper(bitID);
+    if (index >= cbtValue)
+    {
+      index -= cbtValue;
+      bitID++;
+    }
+    c >>= 1;
+  }
+  return bitID - leafCount;
+}
+
+void Reserve(const int count, out uint memIDs[4], uint bisectorID)
+{
+  int offset = atomicAdd(allocCounter, -count);
+  offset -= count;
+  if (offset < 0)
+  {
+    debugPrintfEXT("Less than 0");
+    return;
+  }
+
+  for (uint bit = 0; bit < count; bit++)
+  {
+    uint bitID = ZeroToBitID(uint(offset) + bit);
+    memIDs[bit] = bitID;
+  }
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint cmd = bisectorCommands[bisectorID];
+  if (cmd == BISECTOR_CMD_KEEP)
+    return;
+
+  // Reserve blocks
+  if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 && (cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+  {
+    Reserve(4, bisectors[bisectorID].unusedMemIDs, bisectorID);
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 || (cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+  {
+    Reserve(3, bisectors[bisectorID].unusedMemIDs, bisectorID);
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_0) != 0)
+  {
+    Reserve(2, bisectors[bisectorID].unusedMemIDs, bisectorID);
+  }
+  else if ((cmd & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+  {
+    if ((cmd & BISECTOR_CMD_MERGE_BOUNDARY) != 0)
+    {
+      uint memIDs[4];
+      Reserve(1, memIDs, bisectorID);
+
+      bisectors[bisectorID].unusedMemIDs[0] = memIDs[0];
+
+      // Propagate to merge group
+      uint prev = bisectors[bisectorID].prev;
+      bisectors[prev].unusedMemIDs[0] = memIDs[0]; // b2
+    }
+    else if ((cmd & BISECTOR_CMD_MERGE_NON_BOUNDARY) != 0)
+    {
+      uint memIDs[4];
+      Reserve(2, memIDs, bisectorID);
+
+      bisectors[bisectorID].unusedMemIDs[0] = memIDs[0];
+      bisectors[bisectorID].unusedMemIDs[1] = memIDs[1];
+
+      // Propagate to merge group
+      uint next = bisectors[bisectorID].next;
+      uint prev = bisectors[bisectorID].prev;
+      bisectors[prev].unusedMemIDs[0] = memIDs[0]; // b2
+      bisectors[next].unusedMemIDs[0] = memIDs[1]; // b3
+      uint b3_next = bisectors[next].next;
+      bisectors[b3_next].unusedMemIDs[0] = memIDs[1]; // b4
+    }
+  }
+}

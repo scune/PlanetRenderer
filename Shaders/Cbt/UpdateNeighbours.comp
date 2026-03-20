@@ -1,0 +1,358 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 6) readonly buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+
+
+void RefinePointers(const uint id, const uint cmd)
+{
+  const Bisector b = bisectors[id];
+
+  if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+      (cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+  {
+    uint nextChildren[4] = bisectors[b.next].unusedMemIDs;
+    uint nextCmd = bisectorCommands[b.next];
+    if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+        (nextCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[nextChildren[0]].twin = b.unusedMemIDs[3];
+      bisectors[nextChildren[1]].twin = b.unusedMemIDs[1];
+    }
+    else if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0)
+    {
+      bisectors[nextChildren[0]].next = b.unusedMemIDs[3];
+      bisectors[nextChildren[1]].twin = b.unusedMemIDs[1];
+    }
+    else if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[nextChildren[0]].twin = b.unusedMemIDs[3];
+      bisectors[nextChildren[1]].prev = b.unusedMemIDs[1];
+    }
+    else
+    {
+      bisectors[nextChildren[0]].next = b.unusedMemIDs[3];
+      bisectors[nextChildren[1]].prev = b.unusedMemIDs[1];
+    }
+
+    uint prevChildren[4] = bisectors[b.prev].unusedMemIDs;
+    uint prevCmd = bisectorCommands[b.prev];
+    if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+        (prevCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[prevChildren[0]].twin = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].twin = b.unusedMemIDs[2];
+    }
+    else if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0)
+    {
+      bisectors[prevChildren[0]].next = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].twin = b.unusedMemIDs[2];
+    }
+    else if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[prevChildren[0]].twin = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].prev = b.unusedMemIDs[2];
+    }
+    else
+    {
+      bisectors[prevChildren[0]].next = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].prev = b.unusedMemIDs[2];
+    }
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0) // Only right
+  {
+    if (b.prev != BISECTOR_NULLPTR) // Single split side
+    {
+      uint prevMemIDs[4] = bisectors[b.prev].unusedMemIDs;
+      uint prevCmd = bisectorCommands[b.prev];
+      if (AnySplit(prevCmd))
+      {
+        bisectors[prevMemIDs[1]].twin = b.unusedMemIDs[0];
+      }
+      else if (AnyMerge(prevCmd))
+      {
+        // prevMemIDs[0] is prev parent
+        bisectors[prevMemIDs[0]].next = b.unusedMemIDs[0];
+      }
+      else
+      {
+        uint prevNext = bisectors[b.prev].next;
+        if (prevNext == id)
+        {
+          bisectors[b.prev].next = b.unusedMemIDs[0];
+        }
+        else
+        {
+          bisectors[b.prev].twin = b.unusedMemIDs[0];
+        }
+      }
+    }
+
+    // Double split side
+    uint nextChildren[4] = bisectors[b.next].unusedMemIDs;
+    uint nextCmd = bisectorCommands[b.next];
+    if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+        (nextCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[nextChildren[0]].twin = b.unusedMemIDs[2];
+      bisectors[nextChildren[1]].twin = b.unusedMemIDs[1];
+    }
+    else if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0)
+    {
+      bisectors[nextChildren[0]].next = b.unusedMemIDs[2];
+      bisectors[nextChildren[1]].twin = b.unusedMemIDs[1];
+    }
+    else if ((nextCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[nextChildren[0]].twin = b.unusedMemIDs[2];
+      bisectors[nextChildren[1]].prev = b.unusedMemIDs[1];
+    }
+    else
+    {
+      bisectors[nextChildren[0]].next = b.unusedMemIDs[2];
+      bisectors[nextChildren[1]].prev = b.unusedMemIDs[1];
+    }
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0) // Only left
+  {
+    if (b.next != BISECTOR_NULLPTR) // Single split side
+    {
+      uint nextMemIDs[4] = bisectors[b.next].unusedMemIDs;
+      uint nextCmd = bisectorCommands[b.next];
+      if (AnySplit(nextCmd))
+      {
+        bisectors[nextMemIDs[0]].twin = b.unusedMemIDs[1];
+      }
+      else if (AnyMerge(nextCmd))
+      {
+        // nextMemIDs[0] is next parent
+        bisectors[nextMemIDs[0]].prev = b.unusedMemIDs[1];
+      }
+      else
+      {
+        uint nextPrev = bisectors[b.next].prev;
+        if (nextPrev == id)
+        {
+          bisectors[b.next].prev = b.unusedMemIDs[1];
+        }
+        else
+        {
+          bisectors[b.next].twin = b.unusedMemIDs[1];
+        }
+      }
+    }
+
+    // Double split side
+    uint prevChildren[4] = bisectors[b.prev].unusedMemIDs;
+    uint prevCmd = bisectorCommands[b.prev];
+    if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0 &&
+        (prevCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[prevChildren[0]].twin = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].twin = b.unusedMemIDs[2];
+    }
+    else if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_1) != 0)
+    {
+      bisectors[prevChildren[0]].next = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].twin = b.unusedMemIDs[2];
+    }
+    else if ((prevCmd & BISECTOR_CMD_SPLIT_EDGE_2) != 0)
+    {
+      bisectors[prevChildren[0]].twin = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].prev = b.unusedMemIDs[2];
+    }
+    else
+    {
+      bisectors[prevChildren[0]].next = b.unusedMemIDs[0];
+      bisectors[prevChildren[1]].prev = b.unusedMemIDs[2];
+    }
+  }
+  else if ((cmd & BISECTOR_CMD_SPLIT_EDGE_0) != 0)
+  {
+    if (b.next != BISECTOR_NULLPTR)
+    {
+      uint nextMemIDs[4] = bisectors[b.next].unusedMemIDs;
+      uint nextCmd = bisectorCommands[b.next];
+      if (AnySplit(nextCmd))
+      {
+        bisectors[nextMemIDs[0]].twin = b.unusedMemIDs[1];
+      }
+      else if (AnyMerge(nextCmd))
+      {
+        // nextMemIDs[0] is next parent
+        bisectors[nextMemIDs[0]].prev = b.unusedMemIDs[1];
+      }
+      else
+      {
+        uint nextPrev = bisectors[b.next].prev;
+        if (nextPrev == id)
+        {
+          bisectors[b.next].prev = b.unusedMemIDs[1];
+        }
+        else
+        {
+          bisectors[b.next].twin = b.unusedMemIDs[1];
+        }
+      }
+    }
+    if (b.prev != BISECTOR_NULLPTR)
+    {
+      uint prevMemIDs[4] = bisectors[b.prev].unusedMemIDs;
+      uint prevCmd = bisectorCommands[b.prev];
+      if (AnySplit(prevCmd))
+      {
+        bisectors[prevMemIDs[1]].twin = b.unusedMemIDs[0];
+      }
+      else if (AnyMerge(prevCmd))
+      {
+        // prevMemIDs[0] is prev parent
+        bisectors[prevMemIDs[0]].next = b.unusedMemIDs[0];
+      }
+      else
+      {
+        uint prevNext = bisectors[b.prev].next;
+        if (prevNext == id)
+        {
+          bisectors[b.prev].next = b.unusedMemIDs[0];
+        }
+        else
+        {
+          bisectors[b.prev].twin = b.unusedMemIDs[0];
+        }
+      }
+    }
+  }
+}
+
+void DecimatePointers(const uint id0,
+                      const uint id1,
+                      const uint parent)
+{
+  const uint nextID = bisectors[id1].twin;
+
+  if (nextID != BISECTOR_NULLPTR)
+  {
+    const Bisector next = bisectors[nextID];
+    const uint nextCmd = bisectorCommands[nextID];
+
+    if (next.prev == id1)
+    {
+      if (AnySplit(nextCmd))
+      {
+        uint nextLeftChild = next.unusedMemIDs[0];
+        bisectors[nextLeftChild].twin = parent;
+      }
+      else if (nextCmd == BISECTOR_CMD_KEEP)
+      {
+        bisectors[nextID].prev = parent;
+      }
+    }
+    else
+    {
+      if (AnyMerge(nextCmd))
+      {
+        uint nextParent = next.unusedMemIDs[0];
+        bisectors[nextParent].prev = parent;
+      }
+      else if (nextCmd == BISECTOR_CMD_KEEP)
+      {
+        bisectors[nextID].twin = parent;
+      }
+    }
+  }
+
+  const uint prevID = bisectors[id0].twin;
+
+  if (prevID != BISECTOR_NULLPTR)
+  {
+    const Bisector prev = bisectors[prevID];
+    const uint prevCmd = bisectorCommands[prevID];
+
+    if (prev.next == id0)
+    {
+      if (AnySplit(prevCmd))
+      {
+        uint prevRightChild = prev.unusedMemIDs[1];
+        bisectors[prevRightChild].twin = parent;
+      }
+      else if (prevCmd == BISECTOR_CMD_KEEP)
+      {
+        bisectors[prevID].next = parent;
+      }
+    }
+    else
+    {
+      if (AnyMerge(prevCmd))
+      {
+        uint prevParent = prev.unusedMemIDs[0];
+        bisectors[prevParent].next = parent;
+      }
+      else if (prevCmd == BISECTOR_CMD_KEEP)
+      {
+        bisectors[prevID].twin = parent;
+      }
+    }
+  }
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint cmd = bisectorCommands[bisectorID];
+  if (cmd == BISECTOR_CMD_KEEP)
+    return;
+
+  if (AnySplit(cmd))
+  {
+    RefinePointers(bisectorID, cmd);
+  }
+  else if ((cmd & BISECTOR_CMD_MERGE_SMALLEST_ID) != 0)
+  {
+    const Bisector b = bisectors[bisectorID];
+
+    const uint parent0 = b.unusedMemIDs[0];
+    const uint siblingID = b.prev;
+    DecimatePointers(bisectorID, siblingID, parent0);
+
+    if ((cmd & BISECTOR_CMD_MERGE_NON_BOUNDARY) != 0)
+    {
+      const uint id3 = b.next;
+      const uint id4 = bisectors[id3].next;
+      const uint parent1 = b.unusedMemIDs[1];
+      DecimatePointers(id4, id3, parent1);
+    }
+  }
+}

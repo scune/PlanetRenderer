@@ -1,0 +1,46 @@
+---
+Language: Cpp
+BreakBeforeBraces: Allman
+#BreakBeforeBraces: Custom
+#BraceWrapping:
+#  AfterCaseLabel: true
+#  AfterClass: true
+#  AfterControlStatement: Always
+#  AfterEnum: true
+#  AfterExternBlock: true
+#  AfterFunction: true
+#  AfterNamespace: true
+#  AfterObjCDeclaration: true
+#  AfterStruct: true
+#  AfterUnion: true
+#  BeforeElse: true
+#  SplitEmptyFunction: true
+#  SplitEmptyRecord: true
+#  SplitEmptyNamespace: true
+BreakAdjacentStringLiterals: true
+BreakAfterAttributes: Leave
+BreakAfterJavaFieldAnnotations: false
+BreakAfterReturnType: None
+BreakArrays: true
+BreakBeforeBinaryOperators: None
+BreakBeforeConceptDeclarations: Always
+BreakBeforeInlineASMColon: OnlyMultiline
+BreakBeforeTemplateCloser: false
+BreakBeforeTernaryOperators: true
+BreakBinaryOperations: Never
+BreakConstructorInitializers: BeforeColon
+BreakFunctionDefinitionParameters: false
+BreakInheritanceList: BeforeColon
+BreakStringLiterals: true
+BreakTemplateDeclarations: Yes
+ColumnLimit: 80
+DerivePointerAlignment: false
+PointerAlignment: Left
+AlignAfterOpenBracket: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+IndentWidth: 2
+UseTab: Never
+

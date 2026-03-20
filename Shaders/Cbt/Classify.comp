@@ -1,0 +1,243 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "Halfedge.glsl.hpp"
+#include "../PlanetVertex.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 0) readonly buffer Cbt
+{
+  uint tree[CBT_TREE_SIZE];
+  uint64_t bitfield[CBT_BITFIELD_SIZE];
+} cbt;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 7, scalar) readonly buffer OutVertices
+{
+  layout(offset = 16)
+  PlanetVertex cachedVertices[3 * BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 6) writeonly buffer BisectorCommands
+{
+  uint bisectorCommands[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 8) uniform GlobalUpdate
+{
+  mat4 camMatrix;
+  vec4 frustumPlanes[4];
+  vec4 camPos;
+  vec4 lookAt;
+};
+
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec2 debugData[];
+};
+
+layout(push_constant, scalar) uniform PushConstant
+{
+  layout(offset = 4)
+  uint maxSubdivision;
+  uint minDepth;
+  uint baseBisectorIndex;
+  uint pixelCount;
+};
+
+
+
+bool FrustumCullPoint(vec3 p)
+{
+  for (uint i = 0; i < 4; i++)
+  {
+    if (dot(frustumPlanes[i], vec4(p, 1.f)) < 0.f)
+      return true;
+  }
+  return false;
+}
+
+bool FrustumCulling(vec4 v[3], out bool anyCull)
+{
+  vec3 parentVertex = vec3(v[0].w, v[1].w, v[2].w);
+
+  bool culled0 = FrustumCullPoint(v[0].xyz);
+  bool culled1 = FrustumCullPoint(v[1].xyz);
+  bool culled2 = FrustumCullPoint(v[2].xyz);
+  //bool culledParent = FrustumCullPoint(parentVertex);
+  /*
+  if (culled0 && dot(lookAt.xyz, normalize(v[0].xyz - camPos.xyz)) > 0.f)
+  {
+    float dist = dot(frustumPlanes[closestID0], vec4(v[0].xyz, 1.f));
+    //debugPrintfEXT("Clip0: %f", dist);
+    v[0].xyz -= dist * frustumPlanes[closestID0].xyz;
+  }
+  if (culled1 && dot(lookAt.xyz, normalize(v[1].xyz - camPos.xyz)) > 0.f)
+  {
+    float dist = dot(frustumPlanes[closestID1], vec4(v[1].xyz, 1.f));
+    //debugPrintfEXT("Clip1: %f", dist);
+    v[1].xyz -= dist * frustumPlanes[closestID1].xyz;
+  }
+  if (culled2 && dot(lookAt.xyz, normalize(v[2].xyz - camPos.xyz)) > 0.f)
+  {
+    float dist = dot(frustumPlanes[closestID2], vec4(v[2].xyz, 1.f));
+    //debugPrintfEXT("Clip2: %f", dist);
+    v[2].xyz -= dist * frustumPlanes[closestID2].xyz;
+  }*/
+  anyCull = culled0 || culled1 || culled2;
+  return culled0 && culled1 && culled2 /* && culledParent */;
+}
+
+bool AABBFrustumCulling(const vec4 v[3])
+{
+  vec3 aabbMin = vec3(min(min(v[0].x, v[1].x), v[2].x), min(min(v[0].y, v[1].y), v[2].y), min(min(v[0].z, v[1].z), v[2].z));
+  vec3 aabbMax = vec3(max(max(v[0].x, v[1].x), v[2].x), max(max(v[0].y, v[1].y), v[2].y), max(max(v[0].z, v[1].z), v[2].z));
+
+  //vec3 pv = vec3(v[0].w, v[1].w, v[2].w);
+  //vec3 aabbMin = vec3(min(min(v[0].x, v[1].x), min(v[2].x, pv.x)), min(min(v[0].y, v[1].y), min(v[2].y, pv.y)), min(min(v[0].z, v[1].z), min(v[2].z, pv.z)));
+  //vec3 aabbMax = vec3(max(max(v[0].x, v[1].x), max(v[2].x, pv.x)), max(max(v[0].y, v[1].y), max(v[2].y, pv.y)), max(max(v[0].z, v[1].z), max(v[2].z, pv.z)));
+
+  vec3 center = (aabbMax + aabbMin) * 0.5f;
+  vec3 extents = (aabbMax - aabbMin) * 0.5f;
+  for (uint i = 0; i < 4; i++)
+  {
+    vec3 normalSign = sign(frustumPlanes[i].xyz);
+    vec3 testPoint = center + extents * normalSign;
+    if (dot(vec4(testPoint, 1.f), frustumPlanes[i]) < 0.f)
+      return true;
+  }
+  return false;
+}
+
+bool AABBFrustumCullingParent(const vec4 v[3])
+{
+  vec3 pv = vec3(v[0].w, v[1].w, v[2].w);
+  vec3 aabbMin = vec3(min(min(v[0].x, v[1].x), min(v[2].x, pv.x)), min(min(v[0].y, v[1].y), min(v[2].y, pv.y)), min(min(v[0].z, v[1].z), min(v[2].z, pv.z)));
+  vec3 aabbMax = vec3(max(max(v[0].x, v[1].x), max(v[2].x, pv.x)), max(max(v[0].y, v[1].y), max(v[2].y, pv.y)), max(max(v[0].z, v[1].z), max(v[2].z, pv.z)));
+
+  vec3 center = (aabbMax + aabbMin) * 0.5f;
+  vec3 extents = (aabbMax - aabbMin) * 0.5f;
+  for (uint i = 0; i < 4; i++)
+  {
+    vec3 normalSign = sign(frustumPlanes[i].xyz);
+    vec3 testPoint = center + extents * normalSign;
+    if (dot(vec4(testPoint, 1.f), frustumPlanes[i]) < 0.f)
+      return true;
+  }
+  return false;
+}
+
+uint Classify(vec4 v[3], uint depth, uint twinID, uint bisectorID, out uint flags)
+{
+  vec3 n = normalize(cross(v[2].xyz - v[0].xyz, v[1].xyz - v[0].xyz));
+  vec3 parentVertex = vec3(v[0].w, v[1].w, v[2].w);
+  vec3 nParent = normalize(cross(parentVertex - v[0].xyz, v[1].xyz - v[0].xyz));
+  vec3 toV = normalize(v[0].xyz - camPos.xyz);
+  float vDotN = dot(toV, n); // Backface
+  float fDotN = dot(toV, lookAt.xyz); // Behind camera
+  float vDotParentN = dot(toV, nParent); // Backface parent
+  if ((vDotN < -1e-2f || fDotN < -1e-2f) && vDotParentN < -1e-2f)
+  {
+    flags = BISECTOR_FLAG_BACKFACE_CULLED;
+    return BISECTOR_CMD_MERGE;
+  }
+  if (vDotN < -1e-2f || fDotN < -1e-2f)
+  {
+    flags = BISECTOR_FLAG_BACKFACE_CULLED;
+    return BISECTOR_CMD_KEEP;
+  }
+
+  if (AABBFrustumCullingParent(v))
+  {
+    flags = BISECTOR_FLAG_FRUSTUM_CULLED;
+    return BISECTOR_CMD_MERGE;
+  }
+  if (AABBFrustumCulling(v))
+  {
+    flags = BISECTOR_FLAG_FRUSTUM_CULLED;
+    return BISECTOR_CMD_KEEP;
+  }
+
+  vec4 clip0 = camMatrix * vec4(v[0].xyz, 1.f);
+  vec4 clip1 = camMatrix * vec4(v[1].xyz, 1.f);
+  vec4 clip2 = camMatrix * vec4(v[2].xyz, 1.f);
+
+  vec2 ndc0 = clip0.xy / clip0.w;
+  vec2 ndc1 = clip1.xy / clip1.w;
+  vec2 ndc2 = clip2.xy / clip2.w;
+
+  vec2 s0 = ndc0 * 0.5f + 0.5f;
+  vec2 s1 = ndc1 * 0.5f + 0.5f;
+  vec2 s2 = ndc2 * 0.5f + 0.5f;
+  /*
+  if (any(lessThan(s0, vec2(0.f))) || any(greaterThan(s0, vec2(1.f))) ||
+      any(lessThan(s1, vec2(0.f))) || any(greaterThan(s1, vec2(1.f))) ||
+      any(lessThan(s2, vec2(0.f))) || any(greaterThan(s2, vec2(1.f))))
+  {
+    return BISECTOR_CMD_KEEP;
+  }*/
+
+  float area = 0.5f * abs(s0.x * (s2.y - s1.y) + s1.x * (s0.y - s2.y) + s2.x * (s1.y - s0.y));
+  area *= pixelCount;
+
+  //float areaOverestimation = mix(2.f, 1.f, pow(vDotN, 0.2f));
+  //area *= areaOverestimation;
+
+  if (TRIANGLE_SIZE < area && depth < maxSubdivision)
+  {
+    return BISECTOR_CMD_SPLIT;
+  }
+  else if ((TRIANGLE_SIZE * 0.5f > area || depth > maxSubdivision) && depth > 0)
+  {
+    vec3 parentVertex = vec3(v[0].w, v[1].w, v[2].w);
+    vec4 clip3 = camMatrix * vec4(parentVertex, 1.f);
+    vec2 ndc3 = clip3.xy / clip3.w;
+    vec2 s3 = ndc3 * 0.5f + 0.5f;
+
+    float areaParent = 0.5f * abs(s0.x * (s3.y - s1.y) + s1.x * (s0.y - s3.y) + s3.x * (s1.y - s0.y));
+    areaParent *= pixelCount;
+    //areaParent *= areaOverestimation;
+
+    return (TRIANGLE_SIZE >= areaParent * 1.1f || depth > maxSubdivision) ? BISECTOR_CMD_MERGE : BISECTOR_CMD_KEEP;
+  }
+
+  return BISECTOR_CMD_KEEP;
+}
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  uint64_t bisectorIndex = bisectors[bisectorID].index;
+  uint twinID = bisectors[bisectorID].twin;
+  uint depth = BisectorDepth(bisectorIndex, minDepth);
+
+  vec4 v[3];
+  v[0] = cachedVertices[gl_GlobalInvocationID.x * 3].pos;
+  v[1] = cachedVertices[gl_GlobalInvocationID.x * 3 + 1].pos;
+  v[2] = cachedVertices[gl_GlobalInvocationID.x * 3 + 2].pos;
+
+  uint flags = 0;
+  uint cmd = Classify(v, depth, twinID, bisectorID, flags);
+
+  bisectorCommands[bisectorID] = cmd;
+  bisectors[bisectorID].flags = flags;
+}
