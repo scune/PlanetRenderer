@@ -215,8 +215,8 @@ void main()
   // Swapchain = vec4(Light());
   //Swapchain = vec4(TerrainColor(), 1.f);
   //Swapchain = vec4(inNormal.w);
-  Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
-  //Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
+  //Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
+  Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
   // Swapchain = vec4(inNormal, 1.f);
   // Swapchain = vec4(TerrainColor(inPos) * Light(), 1.f);
 }

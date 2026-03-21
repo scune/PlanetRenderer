@@ -20,83 +20,18 @@ void PlanetRenderer::Init()
   // MeshGen::CubeHalfedges(halfedges, mVertices, 1.f);
   MeshGen::IsosahedronHalfedges(halfedges, mVertices);
 
-  GenPlanetMesh();
   CreateBuffers();
   CreateDescriptor();
   CreateGraphicsShader();
   // CreateComputeShader();
 
-  uint32_t maxSubdivision = 1;
+  uint32_t maxSubdivision = 12;
   mCbtBisection.Init(maxSubdivision, halfedges, mVertices, mVertexBuffer,
                      10000.f);
 
-  /*for (uint32_t i = 0; i < 4; i++)
-    mCbtBisection.Test(halfedges.size(), glm::vec3(0.f));
-
-  gContext.ResetAndBeginCmdBuffer();
-  BufferCopyDeviceToDevice(mCbtBisection.GetVertexCacheBuffer(), mVertexBuffer,
-                           gContext.GetCommandBuffer(), mVertexBuffer.size);
-  gContext.EndCommandBuffer();
-  gContext.OneTimeSubmit();
-
-  mIndices.resize(128 * 3);
-  for (uint32_t i = 0; i < mIndices.size(); i++)
-  {
-    mIndices[i] = i;
-  }
-  IfNThrow(
-      BufferCopyToHost(mIndexBuffer, mIndices.data(), VecByteSize(mIndices)),
-      "Failed to copy to index buffer!");*/
-}
-
-void PlanetRenderer::GenPlanetMesh() noexcept
-{
-  // std::vector<glm::vec3> vertices;
-  //  MeshGen::Icosphere(vertices, mIndices, 2);
-  /*
-  MeshGen::QuadrilateralizedSphere(vertices, mIndices, 1);
-
-  mVertices.reserve(vertices.size());
-  for (uint32_t i = 0; i < vertices.size(); i++)
-  {
-    mVertices.emplace_back(glm::vec4(vertices[i], 1.f));
-  }
-  */
-  // SplitTest(mVertices, mIndices, 2);
-  /*
-  for (uint32_t i = 0; i < mVertices.size(); i++)
-  {
-    mVertices[i] = glm::normalize(mVertices[i]);
-  }*/
-
-  /*
-  const auto quad = MeshGen::Quad(3.f);
-  vertices.append_range(quad.first);
-  mIndices.append_range(quad.second);
-
-  mVertices.reserve(vertices.size());
-  for (uint32_t i = 0; i < vertices.size(); i++)
-  {
-    mVertices.emplace_back(glm::vec4(vertices[i], 1.f));
-  }
-
-  SplitTest(mVertices, mIndices, 3);*/
-  /*
-   for (uint32_t i = 0; i < 3; i++)
-   {
-     LEB(mVertices, mIndices);
-   }*/
-
   mCam.SetPos(glm::vec3(0.f, -11200.f, 0.f));
   mCam.SetRot(glm::vec3(0.f, 1.f, 0.f));
-
-  // CbtTest(mVertices, mIndices, 7, glm::vec3(0.3f, 0.8f, 0.f),
-  //        glm::vec3(-0.9f, -0.75f, 0.f));
-
-  /*auto noise2d =
-      Gen2DNoiseTexture(VkExtent2D{.width = 32 * 3, .height = 32 * 2});
-  IfNThrow(noise2d.has_value(), "Failed to generate noise texture!");
-  mTexture = noise2d.value();*/
+  mCam.SetSpeed(1000.f);
 }
 
 void PlanetRenderer::CreateBuffers()

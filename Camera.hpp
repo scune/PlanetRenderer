@@ -15,12 +15,12 @@ public:
     mRot = rot;
     mLastDir = rot;
   }
+  inline void SetSpeed(float speed) noexcept { mSpeed = speed; }
 
   inline const glm::mat4& GetMatrix() const noexcept { return mMat; }
   inline const glm::mat4& GetPrevMatrix() const noexcept { return mPrevMat; }
   inline const glm::vec3& GetPos() const noexcept { return mPos; }
   inline const glm::vec3& GetRot() const noexcept { return mRot; }
-
   inline float GetNear() const noexcept { return mNear; }
   inline float GetFar() const noexcept { return mFar; }
 
@@ -37,7 +37,7 @@ private:
   const float mFar{20000.f};
 
   glm::vec3 mPos{glm::vec3(0.f)};
-  float mSpeed{50.f};
+  float mSpeed{1.f};
 
   inline void GetMouseOffset(float& x_offset, float& y_offset);
   inline void ComputeMouseEvents();

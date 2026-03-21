@@ -33,35 +33,34 @@ const glm::mat3 m1 = glm::transpose(glm::mat3{
 
 void M0M1_Test()
 {
-  for (uint32_t i = 0; i < 100; i++)
+  glm::mat3 m32 = glm::identity<glm::mat3>();
+  std::vector<glm::mat3> fp32mats((1 << 5));
+  for (uint32_t i = 0; i < (1 << 5); i++)
   {
-    glm::mat3 m = glm::identity<glm::mat3>();
-    for (uint32_t j = 0; j < 16; j++)
-    {
-      m *= (PcgHash() & 1) ? m0 : m1;
-    }
-    COUT(i << ":");
-    COUT_MAT3(m);
+    m32 *= (i & 1) ? m1 : m0;
+    fp32mats[i] = m32;
   }
 
+  glm::dmat3 m64 = glm::identity<glm::dmat3>();
+  std::vector<glm::dmat3> fp64mats((1 << 5));
+  for (uint32_t i = 0; i < (1 << 5); i++)
   {
-    glm::mat3 m = glm::identity<glm::mat3>();
-    for (uint32_t j = 0; j < 16; j++)
-    {
-      m *= m0;
-    }
-    COUT("m0^16:");
-    COUT_MAT3(m);
+    m64 *= (i & 1) ? glm::dmat3(m1) : glm::dmat3(m0);
+    fp64mats[i] = m64;
   }
-  {
-    glm::mat3 m = glm::identity<glm::mat3>();
-    for (uint32_t j = 0; j < 16; j++)
-    {
-      m *= m1;
-    }
-    COUT("m1^16:");
-    COUT_MAT3(m);
-  }
+
+  m32 *= fp32mats[0b10101];
+  m32 *= fp32mats[0b10111];
+  m32 *= fp32mats[0b00011];
+  m32 *= fp32mats[0b01100];
+
+  m64 *= fp64mats[0b10101];
+  m64 *= fp64mats[0b10111];
+  m64 *= fp64mats[0b00011];
+  m64 *= fp64mats[0b01100];
+
+  COUT_MAT3(m32);
+  COUT_MAT3(m64);
 }
 
 void CbtBisection::RootBisectorVertices(

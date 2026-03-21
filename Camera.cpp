@@ -27,55 +27,55 @@ void Camera::Update()
 
 inline void Camera::ProcessInputEvents()
 {
+  const auto window = gContext.GetWindow();
+
   // Rotation
-  if (glfwGetMouseButton(gContext.GetWindow(), GLFW_MOUSE_BUTTON_RIGHT) ==
-      GLFW_RELEASE)
+  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE)
   {
-    glfwSetInputMode(gContext.GetWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     mFirstClick = true;
   }
-  else if (glfwGetMouseButton(gContext.GetWindow(), GLFW_MOUSE_BUTTON_RIGHT) ==
-           GLFW_PRESS)
+  else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
   {
     ComputeMouseEvents();
   }
 
   // Position
   float speed = mSpeed * gContext.GetDeltaTime();
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
   {
     speed *= 10.f;
-    if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
     {
-      speed *= 4.f;
+      speed *= 10.f;
     }
   }
-  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
+  else if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
   {
     speed *= 0.1f;
   }
 
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
     mPos += mRot * speed;
   }
-  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
+  else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
     mPos -= mRot * speed;
   }
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_D) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
     mPos += glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
   }
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_A) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
     mPos -= glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
   }
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_E) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
     mPos += glm::vec3(0.f, 0.f, 1.f) * speed;
   }
-  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_Q) == GLFW_PRESS)
+  else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
   {
     mPos -= glm::vec3(0.f, 0.f, 1.f) * speed;
   }

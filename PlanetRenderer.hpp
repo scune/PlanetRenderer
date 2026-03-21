@@ -27,7 +27,6 @@ public:
                     uint32_t swapchainImgIdx) noexcept;
 
 private:
-  void GenPlanetMesh() noexcept;
   std::vector<glm::vec4> mVertices;
   std::vector<uint32_t> mIndices;
 
