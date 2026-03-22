@@ -28,8 +28,8 @@ void PlanetRenderer::Init()
   uint32_t maxSubdivision = 12;
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f);
 
-  mCam.SetPos(glm::vec3(0.f, -11200.f, 0.f));
-  mCam.SetRot(glm::vec3(0.f, 1.f, 0.f));
+  mCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
+  mCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));
   mCam.SetSpeed(1000.f);
 }
 

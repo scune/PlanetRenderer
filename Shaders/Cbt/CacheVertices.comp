@@ -68,8 +68,6 @@ layout(push_constant, scalar) uniform PushConstant
   uint baseBisectorIndex;
   uint pixelCount;
   float planetScale;
-  float baseFbmFrequency;
-  float baseFbmAmplitude;
 };
 
 
@@ -156,12 +154,12 @@ void main()
   vec3 parentVertex = vec3(0.f);
   mat3 v = BisectorVertices(bisectorIndex, depth, parentVertex);
 
-  //const vec3 n = normalize(cross(v[1].xyz - v[0].xyz, v[2].xyz - v[0].xyz));
+  const vec3 n = normalize(cross(v[1].xyz - v[0].xyz, v[2].xyz - v[0].xyz));
 
   uint vertexOffset = gl_GlobalInvocationID.x * 3;
   for (uint i = 0; i < 3; i++)
   {
     outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);
-    //outVertices[vertexOffset + i].normal = vec4(n, 1.f);
+    outVertices[vertexOffset + i].normal = vec4(n, 1.f);
   }
 }

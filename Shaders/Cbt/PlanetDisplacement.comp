@@ -29,8 +29,8 @@ layout(push_constant, scalar) uniform PushConstant
   uint baseBisectorIndex;
   uint pixelCount;
   float planetScale;
-  float baseFbmFrequency;
-  float baseFbmAmplitude;
+  float fbmFrequency;
+  float fbmAmplitude;
   float noiseTopGridSize;
 };
 
@@ -46,17 +46,17 @@ vec2 CubeProj(vec3 pos, out uint planeID)
 
   if (absP.x > absP.y && absP.x > absP.z) // x
   {
-    planeID = (pos.x > 0.f) ? 0 : 3;
+    planeID = (pos.x > 0.f) ? 1 : 3;
     return uv.yz;
   }
   else if (absP.y > absP.z) // y
   {
-    planeID = (pos.y > 0.f) ? 1 : 4;
+    planeID = (pos.y > 0.f) ? 2 : 0;
     return uv.xz;
   }
   else // z
   {
-    planeID = (pos.z > 0.f) ? 2 : 5;
+    planeID = (pos.z > 0.f) ? 4 : 5;
     return uv.xy;
   }
 }
@@ -128,6 +128,16 @@ vec3 Terrain(vec2 p)
   return vec3(a, normal);
 }
 
+vec3 AlignToNormal(const vec3 dir, const vec3 normal)
+{
+  const vec3 up = abs(normal.z) < 0.999f ? vec3(0.f, 0.f, 1.f) : vec3(1.f, 0.f, 0.f);
+
+  const vec3 tangent = normalize(cross(up, normal));
+  const vec3 bitangent = cross(normal, tangent);
+
+  return dir.x * tangent + dir.y * bitangent + dir.z * normal;
+}
+
 void main()
 {
   const uint parentCount = (vertexCount + 2) / 3;
@@ -154,10 +164,10 @@ void main()
   vec2 uv = CubeProj(v, planeID);
 
   uv += float(planeID);
-  uv *= 10.f;
+  //uv *= fbmFrequency; // TODO: only temp commant
 
   vec3 ad = Terrain(uv);
-  ad *= (planetScale * 0.05f);
+  ad *= fbmAmplitude;
   // TODO: Parent via subgroup op's
   v = v * ad.x + v * planetScale;
 
@@ -175,6 +185,8 @@ void main()
   else
   {
     outVertices[vIdx].pos.xyz = v;
+
+    normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
     outVertices[vIdx].normal = normal;
   }
 }

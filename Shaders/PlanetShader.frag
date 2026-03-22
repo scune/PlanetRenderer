@@ -216,42 +216,35 @@ vec3 TriplanarProjection(float blendSharpness)
   vec3 blending = abs(inNormal.xyz);
   blending = pow(blending, vec3(blendSharpness));
 
-  blending.x = (blending.x < 0.1f) ? 0.f : blending.x;
-  blending.y = (blending.y < 0.1f) ? 0.f : blending.y;
-  blending.z = (blending.z < 0.1f) ? 0.f : blending.z;
   float weightSum = blending.x + blending.y + blending.z;
   blending /= weightSum;
 
-  vec3 worldPos = inPos.xyz / 100.f;
-  vec3 color[3] = {};
-  if (blending.x > 0.1f)
-    color[0] = texture(texture2, worldPos.yz).rgb;
-  if (blending.y > 0.1f)
-    color[1] = texture(texture2, worldPos.xz).rgb;
-  if (blending.z > 0.1f)
-    color[2] = texture(texture2, worldPos.xy).rgb;
+  vec3 worldPos = inPos.xyz / 10.f;
+  vec3 color[3];
+  color[0] = texture(texture2, worldPos.yz).rgb;
+  color[1] = texture(texture2, worldPos.xz).rgb;
+  color[2] = texture(texture2, worldPos.xy).rgb;
 
   return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
 }
 
-vec2 CubeProj(vec3 pos, out uint planeID)
+vec2 CubeProj(vec3 pos)
 {
   const vec3 absP = abs(pos);
-  const vec3 uv = normalize(pos) * 0.5f + 0.5f;
+  vec3 uv = pos * 0.5f + 0.5f;
 
   if (absP.x > absP.y && absP.x > absP.z) // x
   {
-    planeID = (pos.x > 0.f) ? 1 : 4;
     return uv.yz;
   }
   else if (absP.y > absP.z) // y
   {
-    planeID = (pos.y > 0.f) ? 2 : 5;
+    //if (pos.y < 0.f)
+    //  uv.x = 1.f - uv.x;
     return uv.xz;
   }
   else // z
   {
-    planeID = (pos.z > 0.f) ? 3 : 6;
     return uv.xy;
   }
 }
@@ -262,9 +255,9 @@ void main()
   // Swapchain = vec4(TerrainColor(), 1.f);
   // Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
   // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  // uint planeID;
-  // Swapchain = vec4(CubeProj(inPos.xyz, planeID), 0.f, 1.f);
-  Swapchain = vec4(inNormal.xyz, 1.f);
-  //Swapchain = vec4(inNormal.w + 0.4f);
+  //Swapchain = vec4(TriplanarProjection(10.f), 1.f);
+  Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
+  //Swapchain = vec4(inNormal.xyz, 1.f);
+  //Swapchain = vec4(inNormal.w / 10.f);
   // Swapchain = vec4(TerrainColor(inPos) * Light(), 1.f);
 }

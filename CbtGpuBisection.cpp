@@ -96,8 +96,8 @@ void CbtBisection::InitConstPushConstantData(
   mGenCmdsPushConstants.pixelCount =
       gSwapchain.GetExtent().width * gSwapchain.GetExtent().height;
   mGenCmdsPushConstants.planetScale = scale;
-  mGenCmdsPushConstants.baseFbmFrequency = 4.f;
-  mGenCmdsPushConstants.baseFbmAmplitude = 2.f;
+  mGenCmdsPushConstants.fbmFrequency = 10.f;
+  mGenCmdsPushConstants.fbmAmplitude = scale * 0.05f; // % of planet scale
 
   assert(mGenCmdsPushConstants.minDepth + mGenCmdsPushConstants.maxSubdivision <
          64);
