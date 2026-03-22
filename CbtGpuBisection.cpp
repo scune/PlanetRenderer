@@ -87,7 +87,7 @@ void CbtBisection::RootBisectorVertices(
 
 void CbtBisection::InitConstPushConstantData(
     uint32_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
-    InitializerList<glm::vec4> rootVertices, float scale) noexcept
+    float scale) noexcept
 {
   mGenCmdsPushConstants.maxSubdivision =
       std::min<uint32_t>(CBT_DEPTH, maxSubdivision);
@@ -101,17 +101,6 @@ void CbtBisection::InitConstPushConstantData(
 
   assert(mGenCmdsPushConstants.minDepth + mGenCmdsPushConstants.maxSubdivision <
          64);
-
-  glm::vec3 rootBisVecs[3];
-  RootBisectorVertices(0, halfedges, rootVertices, rootBisVecs);
-  for (auto& v : rootBisVecs)
-    v = glm::normalize(v);
-
-  float minDist = glm::distance(rootBisVecs[0], rootBisVecs[1]);
-  minDist = std::min(minDist, glm::distance(rootBisVecs[1], rootBisVecs[2]));
-  minDist = std::min(minDist, glm::distance(rootBisVecs[2], rootBisVecs[0]));
-  minDist *= mGenCmdsPushConstants.planetScale;
-  mGenCmdsPushConstants.noiseTopGridSize = 2.f / minDist;
 }
 
 inline std::vector<Cbt::Bisector>
@@ -132,10 +121,9 @@ CreateRootBisectors(InitializerList<Cbt::Halfedge> halfedges,
 
 void CbtBisection::Init(uint32_t maxSubdivision,
                         InitializerList<Cbt::Halfedge> halfedges,
-                        InitializerList<glm::vec4> rootVertices,
                         const Buffer& vertexBuffer, float scale)
 {
-  InitConstPushConstantData(maxSubdivision, halfedges, rootVertices, scale);
+  InitConstPushConstantData(maxSubdivision, halfedges, scale);
 
   const auto bisectors =
       CreateRootBisectors(halfedges, mGenCmdsPushConstants.baseBisectorIndex);
@@ -143,18 +131,16 @@ void CbtBisection::Init(uint32_t maxSubdivision,
   CreateBuffers(halfedges.begin(), bisectors.data(), halfedges.size());
   CreateDescriptors(vertexBuffer);
 
-  VkPushConstantRange sumReducPushConstantRange{};
-  sumReducPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-  sumReducPushConstantRange.offset = 0;
-  sumReducPushConstantRange.size = sizeof(SumReducPushConstants);
+  mSumReducPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  mSumReducPushConstantRange.offset = 0;
+  mSumReducPushConstantRange.size = sizeof(SumReducPushConstants);
 
-  VkPushConstantRange genCmdsPushConstantRange{};
-  genCmdsPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-  genCmdsPushConstantRange.offset = sizeof(SumReducPushConstants);
-  genCmdsPushConstantRange.size = sizeof(GenCmdsPushConstants);
+  mGenCmdsPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  mGenCmdsPushConstantRange.offset = sizeof(SumReducPushConstants);
+  mGenCmdsPushConstantRange.size = sizeof(GenCmdsPushConstants);
 
-  CreatePipelineLayouts(sumReducPushConstantRange, genCmdsPushConstantRange);
-  CreateComputeShaders(sumReducPushConstantRange, genCmdsPushConstantRange);
+  CreatePipelineLayouts(mSumReducPushConstantRange, mGenCmdsPushConstantRange);
+  CreateComputeShaders(mSumReducPushConstantRange, mGenCmdsPushConstantRange);
 
   InitBuffers(halfedges.size());
 }
@@ -272,7 +258,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
              "Failed to update descriptor set!");
   }
 
-  DescriptorBuilder<10> builder;
+  DescriptorBuilder<11> builder;
   builder.AddSSBO(mCbt, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mPointerCache, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mBisectors, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -283,6 +269,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
   builder.AddSSBO(mVertexCache, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddUBO(mGlobalUpdate, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mDebugBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
+  builder.AddSSBO(mDispatchBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
 
   auto poolRes = builder.BuildDescriptorPool();
   if (poolRes.has_value())
@@ -312,8 +299,8 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
 }
 
 void CbtBisection::CreatePipelineLayouts(
-    const VkPushConstantRange& sumReducPushConstantRange,
-    const VkPushConstantRange& genCmdsPushConstantRange)
+    const VkPushConstantRange& mSumReducPushConstantRange,
+    const VkPushConstantRange& mGenCmdsPushConstantRange)
 {
   std::array<VkPipelineLayout, 4> layouts{};
   std::array<VkPipelineLayoutCreateInfo, 4> createInfos{};
@@ -329,12 +316,12 @@ void CbtBisection::CreatePipelineLayouts(
   createInfos[2].setLayoutCount = 1;
   createInfos[2].pSetLayouts = &mDescriptorSetLayout;
   createInfos[2].pushConstantRangeCount = 1;
-  createInfos[2].pPushConstantRanges = &genCmdsPushConstantRange;
+  createInfos[2].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   createInfos[3].setLayoutCount = 1;
   createInfos[3].pSetLayouts = &mDescriptorSetLayout;
   createInfos[3].pushConstantRangeCount = 1;
-  createInfos[3].pPushConstantRanges = &sumReducPushConstantRange;
+  createInfos[3].pPushConstantRanges = &mSumReducPushConstantRange;
 
   static_assert(layouts.size() == createInfos.size());
 
@@ -352,12 +339,12 @@ void CbtBisection::CreatePipelineLayouts(
 }
 
 void CbtBisection::CreateComputeShaders(
-    const VkPushConstantRange& sumReducPushConstantRange,
-    const VkPushConstantRange& genCmdsPushConstantRange)
+    const VkPushConstantRange& mSumReducPushConstantRange,
+    const VkPushConstantRange& mGenCmdsPushConstantRange)
 {
   std::array<VkDescriptorSetLayout, 1> setLayouts{mDescriptorSetLayout};
-  std::array<VkShaderEXT, 12> shaders{};
-  std::array<VkShaderCreateInfoEXT, 12> shaderCreateInfos{};
+  std::array<VkShaderEXT, 14> shaders{};
+  std::array<VkShaderCreateInfoEXT, 14> shaderCreateInfos{};
   for (auto& createInfo : shaderCreateInfos)
   {
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
@@ -396,7 +383,7 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[3].setLayoutCount = setLayouts.size();
   shaderCreateInfos[3].pSetLayouts = setLayouts.data();
   shaderCreateInfos[3].pushConstantRangeCount = 1;
-  shaderCreateInfos[3].pPushConstantRanges = &genCmdsPushConstantRange;
+  shaderCreateInfos[3].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   std::vector<uint32_t> shaderCodeGenCmds;
   Shader::LoadSPV("Cbt/GenerateCmds.comp.spv", shaderCodeGenCmds);
@@ -405,7 +392,7 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[4].setLayoutCount = setLayouts.size();
   shaderCreateInfos[4].pSetLayouts = setLayouts.data();
   shaderCreateInfos[4].pushConstantRangeCount = 1;
-  shaderCreateInfos[4].pPushConstantRanges = &genCmdsPushConstantRange;
+  shaderCreateInfos[4].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   std::vector<uint32_t> shaderCodeValidateCmds;
   Shader::LoadSPV("Cbt/ValidateCmds.comp.spv", shaderCodeValidateCmds);
@@ -449,7 +436,7 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[10].setLayoutCount = setLayouts.size();
   shaderCreateInfos[10].pSetLayouts = setLayouts.data();
   shaderCreateInfos[10].pushConstantRangeCount = 1;
-  shaderCreateInfos[10].pPushConstantRanges = &sumReducPushConstantRange;
+  shaderCreateInfos[10].pPushConstantRanges = &mSumReducPushConstantRange;
 
   std::vector<uint32_t> shaderCodeCacheVertices;
   Shader::LoadSPV("Cbt/CacheVertices.comp.spv", shaderCodeCacheVertices);
@@ -458,7 +445,24 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[11].setLayoutCount = setLayouts.size();
   shaderCreateInfos[11].pSetLayouts = setLayouts.data();
   shaderCreateInfos[11].pushConstantRangeCount = 1;
-  shaderCreateInfos[11].pPushConstantRanges = &genCmdsPushConstantRange;
+  shaderCreateInfos[11].pPushConstantRanges = &mGenCmdsPushConstantRange;
+
+  std::vector<uint32_t> shaderCodeIndDispVertex;
+  Shader::LoadSPV("Cbt/IndirectDispatchVertex.comp.spv",
+                  shaderCodeIndDispVertex);
+  shaderCreateInfos[12].codeSize = VecByteSize(shaderCodeIndDispVertex);
+  shaderCreateInfos[12].pCode = shaderCodeIndDispVertex.data();
+  shaderCreateInfos[12].setLayoutCount = setLayouts.size();
+  shaderCreateInfos[12].pSetLayouts = setLayouts.data();
+
+  std::vector<uint32_t> shaderCodePlanetDisp;
+  Shader::LoadSPV("Cbt/PlanetDisplacement.comp.spv", shaderCodePlanetDisp);
+  shaderCreateInfos[13].codeSize = VecByteSize(shaderCodePlanetDisp);
+  shaderCreateInfos[13].pCode = shaderCodePlanetDisp.data();
+  shaderCreateInfos[13].setLayoutCount = setLayouts.size();
+  shaderCreateInfos[13].pSetLayouts = setLayouts.data();
+  shaderCreateInfos[13].pushConstantRangeCount = 1;
+  shaderCreateInfos[13].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   static_assert(shaders.size() == shaderCreateInfos.size());
   IfNThrow(vkCreateShadersEXT(gContext.GetDevice(), shaders.size(),
@@ -478,6 +482,8 @@ void CbtBisection::CreateComputeShaders(
   mUpdateBitfieldShader = shaders[9];
   mSumReductionShader = shaders[10];
   mCacheVertexShader = shaders[11];
+  mIndirectDispatchVertexShader = shaders[12];
+  mPlanetDisplacementShader = shaders[13];
 
   vkCmdBindShadersEXT = GetVkFunc(gContext.GetInstance(), vkCmdBindShadersEXT);
 }
@@ -618,6 +624,7 @@ void CbtBisection::RecordCmds(VkCommandBuffer cmdBuffer)
   FillIndirectDispatchBuffer(cmdBuffer);
   CachePointers(cmdBuffer);
   CacheVertices(cmdBuffer);
+  PlanetDisplacement(cmdBuffer);
 }
 
 void CbtBisection::FillIndirectDispatchBuffer(VkCommandBuffer cmdBuffer)
@@ -632,21 +639,23 @@ void CbtBisection::FillIndirectDispatchBuffer(VkCommandBuffer cmdBuffer)
 
   vkCmdDispatch(cmdBuffer, 1, 1, 1);
 
-  VkBufferMemoryBarrier2 barrier{};
-  barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
-  barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-  barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-  barrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
-  barrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.buffer = mDispatchBuffer.handle;
-  barrier.size = VK_WHOLE_SIZE;
+  std::array<VkBufferMemoryBarrier2, 1> barriers{};
+  barriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+  barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+  barriers[0].srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+  barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT |
+                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+  barriers[0].dstAccessMask =
+      VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+  barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barriers[0].buffer = mDispatchBuffer.handle;
+  barriers[0].size = VK_WHOLE_SIZE;
 
   VkDependencyInfo dependencyInfo{};
   dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-  dependencyInfo.bufferMemoryBarrierCount = 1;
-  dependencyInfo.pBufferMemoryBarriers = &barrier;
+  dependencyInfo.bufferMemoryBarrierCount = barriers.size();
+  dependencyInfo.pBufferMemoryBarriers = barriers.data();
   vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
 }
 
@@ -732,8 +741,9 @@ void CbtBisection::Classify(VkCommandBuffer cmdBuffer)
   vkCmdBindShadersEXT(cmdBuffer, 1, &shaderStage, &mClassifyShader);
 
   vkCmdPushConstants(cmdBuffer, mGenerateCmdsLayout,
-                     VK_SHADER_STAGE_COMPUTE_BIT, sizeof(SumReducPushConstants),
-                     sizeof(GenCmdsPushConstants), &mGenCmdsPushConstants);
+                     VK_SHADER_STAGE_COMPUTE_BIT,
+                     mGenCmdsPushConstantRange.offset,
+                     mGenCmdsPushConstantRange.size, &mGenCmdsPushConstants);
 
   vkCmdDispatchIndirect(cmdBuffer, mDispatchBuffer.handle, 0);
 
@@ -778,8 +788,9 @@ void CbtBisection::GenerateCmds(VkCommandBuffer cmdBuffer)
   vkCmdBindShadersEXT(cmdBuffer, 1, &shaderStage, &mGenerateCmdsShader);
 
   vkCmdPushConstants(cmdBuffer, mGenerateCmdsLayout,
-                     VK_SHADER_STAGE_COMPUTE_BIT, sizeof(SumReducPushConstants),
-                     sizeof(GenCmdsPushConstants), &mGenCmdsPushConstants);
+                     VK_SHADER_STAGE_COMPUTE_BIT,
+                     mGenCmdsPushConstantRange.offset,
+                     mGenCmdsPushConstantRange.size, &mGenCmdsPushConstants);
 
   vkCmdDispatchIndirect(cmdBuffer, mDispatchBuffer.handle, 0);
 
@@ -1020,11 +1031,11 @@ void CbtBisection::SumReduction(VkCommandBuffer cmdBuffer)
   // Sum reduction
   for (int32_t depth = CBT_FIRST_REAL_LEVEL; depth >= 0; depth--)
   {
-    SumReducPushConstants pushConstant;
-    pushConstant.depth = static_cast<uint32_t>(depth);
+    SumReducPushConstants pushConstant{.depth = static_cast<uint32_t>(depth)};
     vkCmdPushConstants(cmdBuffer, mSumReductionLayout,
-                       VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                       sizeof(SumReducPushConstants), &pushConstant);
+                       VK_SHADER_STAGE_COMPUTE_BIT,
+                       mSumReducPushConstantRange.offset,
+                       mSumReducPushConstantRange.size, &pushConstant);
 
     uint32_t nodeCount = 1u << depth;
     uint32_t groupCount = (nodeCount + 63) / 64;
@@ -1060,8 +1071,72 @@ void CbtBisection::CacheVertices(VkCommandBuffer cmdBuffer)
   vkCmdBindShadersEXT(cmdBuffer, 1, &shaderStage, &mCacheVertexShader);
 
   vkCmdPushConstants(cmdBuffer, mGenerateCmdsLayout,
-                     VK_SHADER_STAGE_COMPUTE_BIT, sizeof(SumReducPushConstants),
-                     sizeof(GenCmdsPushConstants), &mGenCmdsPushConstants);
+                     VK_SHADER_STAGE_COMPUTE_BIT,
+                     mGenCmdsPushConstantRange.offset,
+                     mGenCmdsPushConstantRange.size, &mGenCmdsPushConstants);
+
+  vkCmdDispatchIndirect(cmdBuffer, mDispatchBuffer.handle, 0);
+
+  std::array<VkBufferMemoryBarrier2, 1> barriers{};
+  barriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+  barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+  barriers[0].srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+  barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+  barriers[0].dstAccessMask =
+      VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+  barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barriers[0].buffer = mVertexCache.handle;
+  barriers[0].size = VK_WHOLE_SIZE;
+
+  VkDependencyInfo dependencyInfo{};
+  dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+  dependencyInfo.bufferMemoryBarrierCount = barriers.size();
+  dependencyInfo.pBufferMemoryBarriers = barriers.data();
+  vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
+}
+
+void CbtBisection::PlanetDisplacement(VkCommandBuffer cmdBuffer)
+{
+  // Fill indirect dispatch buffer
+  VkDescriptorSet descriptorSets[] = {mDescriptorSet.Get()};
+  vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mLayout, 0,
+                          1, descriptorSets, 0, nullptr);
+
+  VkShaderStageFlagBits shaderStage = VK_SHADER_STAGE_COMPUTE_BIT;
+  vkCmdBindShadersEXT(cmdBuffer, 1, &shaderStage,
+                      &mIndirectDispatchVertexShader);
+
+  vkCmdDispatch(cmdBuffer, 1, 1, 1);
+
+  VkBufferMemoryBarrier2 barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+  barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+  barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+  barrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+  barrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.buffer = mDispatchBuffer.handle;
+  barrier.size = VK_WHOLE_SIZE;
+
+  VkDependencyInfo dependencyInfo{};
+  dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+  dependencyInfo.bufferMemoryBarrierCount = 1;
+  dependencyInfo.pBufferMemoryBarriers = &barrier;
+  vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
+
+  // Displacement
+  vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          mGenerateCmdsLayout, 0, 1, descriptorSets, 0,
+                          nullptr);
+
+  vkCmdBindShadersEXT(cmdBuffer, 1, &shaderStage, &mPlanetDisplacementShader);
+
+  vkCmdPushConstants(cmdBuffer, mGenerateCmdsLayout,
+                     VK_SHADER_STAGE_COMPUTE_BIT,
+                     mGenCmdsPushConstantRange.offset,
+                     mGenCmdsPushConstantRange.size, &mGenCmdsPushConstants);
 
   vkCmdDispatchIndirect(cmdBuffer, mDispatchBuffer.handle, 0);
 }
@@ -1132,11 +1207,20 @@ void CbtBisection::Destroy()
         gContext.GetInstance(), "vkDestroyShaderEXT");
   }
 
-  std::array<VkShaderEXT, 12> shaders{
-      mIndirectDispatchShader, mPointerCacheShader,     mResetCommandsShader,
-      mGenerateCmdsShader,     mValidateCmdsShader,     mReserveBlocksShader,
-      mFillNewBlocksShader,    mUpdateNeighboursShader, mUpdateBitfieldShader,
-      mSumReductionShader,     mCacheVertexShader,      mClassifyShader};
+  std::array<VkShaderEXT, 14> shaders{mIndirectDispatchShader,
+                                      mPointerCacheShader,
+                                      mResetCommandsShader,
+                                      mGenerateCmdsShader,
+                                      mValidateCmdsShader,
+                                      mReserveBlocksShader,
+                                      mFillNewBlocksShader,
+                                      mUpdateNeighboursShader,
+                                      mUpdateBitfieldShader,
+                                      mSumReductionShader,
+                                      mCacheVertexShader,
+                                      mClassifyShader,
+                                      mIndirectDispatchVertexShader,
+                                      mPlanetDisplacementShader};
 
   for (auto shader : shaders)
   {

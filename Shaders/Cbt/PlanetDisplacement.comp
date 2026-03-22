@@ -1,0 +1,180 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_EXT_debug_printf : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "../PlanetVertex.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 7, scalar) buffer OutVertices
+{
+  uint vertexCount;
+  uint instanceCount;
+  uint firstVertex;
+  uint firstInstance;
+  PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
+};
+
+layout(push_constant, scalar) uniform PushConstant
+{
+  layout(offset = 4)
+  uint maxSubdivision;
+  uint minDepth;
+  uint baseBisectorIndex;
+  uint pixelCount;
+  float planetScale;
+  float baseFbmFrequency;
+  float baseFbmAmplitude;
+  float noiseTopGridSize;
+};
+
+
+
+// Accepts a signed normalized pos
+// Returns UV in interval [0.f, 1.f]
+// and ID of the plane from the cube
+vec2 CubeProj(vec3 pos, out uint planeID)
+{
+  const vec3 absP = abs(pos);
+  const vec3 uv = pos * 0.5f + 0.5f;
+
+  if (absP.x > absP.y && absP.x > absP.z) // x
+  {
+    planeID = (pos.x > 0.f) ? 0 : 3;
+    return uv.yz;
+  }
+  else if (absP.y > absP.z) // y
+  {
+    planeID = (pos.y > 0.f) ? 1 : 4;
+    return uv.xz;
+  }
+  else // z
+  {
+    planeID = (pos.z > 0.f) ? 2 : 5;
+    return uv.xy;
+  }
+}
+
+uvec2 Pcg2D(uvec2 v)
+{
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * 1664525u;
+  v.y += v.x * 1664525u;
+  v = v ^ (v>>16u);
+  v.x += v.y * 1664525u;
+  v.y += v.x * 1664525u;
+  v = v ^ (v>>16u);
+  return v;
+}
+
+vec2 Uvec2ToUnitVec2(const uvec2 u)
+{
+  return (u >> 8) * 5.9604644775390625e-08;
+}
+
+vec2 Hash2D(uvec2 u)
+{
+  u = Pcg2D(u);
+  return Uvec2ToUnitVec2(u);
+}
+
+// Accepts a unsigned vec2
+vec3 PerlinNoise2D(vec2 x)
+{
+  vec2 f = fract(x);
+  uvec2 xu = uvec2(x);
+  vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
+  vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
+
+  vec2 ga = Hash2D(xu + uvec2(0, 0));
+  vec2 gb = Hash2D(xu + uvec2(1, 0));
+  vec2 gc = Hash2D(xu + uvec2(0, 1));
+  vec2 gd = Hash2D(xu + uvec2(1, 1));
+
+  float va = dot(ga, f - vec2(0.f, 0.f));
+  float vb = dot(gb, f - vec2(1.f, 0.f));
+  float vc = dot(gc, f - vec2(0.f, 1.f));
+  float vd = dot(gd, f - vec2(1.f, 1.f));
+
+  return vec3(va + u.x*(vb-va) + u.y*(vc-va) + u.x*u.y*(va-vb-vc+vd),  // Value
+              ga + u.x*(gb-ga) + u.y*(gc-ga) + u.x*u.y*(ga-gb-gc+gd) + // Derivative
+              du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
+}
+
+vec3 Terrain(vec2 p)
+{
+  const mat2 m = mat2(0.8f, -0.6f,
+                      0.6f,  0.8f);
+
+  float a = 0.f;
+  float b = 1.f;
+  vec2 d = vec2(0.f);
+  vec2 normal = vec2(0.f);
+  for(int i = 0; i < 10; i++)
+  {
+    vec3 n = PerlinNoise2D(p);
+    d += n.yz;
+    a += b * n.x / (1.f + dot(d, d));
+    normal += b * n.yz / (1.f + dot(d, d));
+    b *= 0.5f;
+    p = m * p * 2.f;
+  }
+  return vec3(a, normal);
+}
+
+void main()
+{
+  const uint parentCount = (vertexCount + 2) / 3;
+  if (gl_GlobalInvocationID.x >= vertexCount + parentCount)
+    return;
+
+  const bool parent = ((gl_GlobalInvocationID.x & 3) == 0) && (gl_GlobalInvocationID.x > 0);
+  const uint vIdx = gl_GlobalInvocationID.x - gl_GlobalInvocationID.x / 4;
+
+  vec3 v;
+  if (parent)
+  {
+    [[unroll]]
+    for (uint i = 0; i < 3; i++)
+      v[i] = outVertices[vIdx - 3 + i].pos.w;
+  }
+  else
+  {
+    v = outVertices[vIdx].pos.xyz;
+  }
+  v = normalize(v); // Project to sphere
+
+  uint planeID;
+  vec2 uv = CubeProj(v, planeID);
+
+  uv += float(planeID);
+  uv *= 10.f;
+
+  vec3 ad = Terrain(uv);
+  ad *= (planetScale * 0.05f);
+  // TODO: Parent via subgroup op's
+  v = v * ad.x + v * planetScale;
+
+  // TODO: x and y may be switched depending on which side of the cube we are on
+  vec4 normal;
+  normal.xyz = normalize(vec3(-ad.yz, 1.f));
+  normal.w = ad.x;
+
+  if (parent)
+  {
+    [[unroll]]
+    for (uint i = 0; i < 3; i++)
+      outVertices[vIdx - 3 + i].pos.w = v[i];
+  }
+  else
+  {
+    outVertices[vIdx].pos.xyz = v;
+    outVertices[vIdx].normal = normal;
+  }
+}

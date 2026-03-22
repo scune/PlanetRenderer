@@ -1,0 +1,32 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+layout(local_size_x = 1) in;
+
+layout(binding = 7, scalar) readonly buffer OutVertices
+{
+  uint vertexCount;
+  uint instanceCount;
+  uint firstVertex;
+  uint firstInstance;
+};
+
+layout(binding = 10) writeonly buffer DispatchBuffer
+{
+  uint x;
+  uint y;
+  uint z;
+} d;
+
+
+
+void main()
+{
+  uint parentCount = (vertexCount + 2) / 3;
+  d.x = (vertexCount + parentCount + 63) / 64;
+  d.y = 1;
+  d.z = 1;
+}

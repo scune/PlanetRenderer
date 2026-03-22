@@ -70,52 +70,9 @@ layout(push_constant, scalar) uniform PushConstant
   float planetScale;
   float baseFbmFrequency;
   float baseFbmAmplitude;
-  float noiseTopGridSize;
 };
 
 
-
-// Converts a random uint to a random float in [0, 1).
-// https://github.com/rust-random/rand/blob/7aa25d577e2df84a5156f824077bb7f6bdf28d97/src/distributions/float.rs#L111-L117
-float UintToUnitFloat(const uint i)
-{
-  // 32 - 8 = 24 (exponent), 1.0 / (1 << 24) = 5.9604644775390625e-08
-  // top bits are usually more random.
-  return (i >> 8) * 5.9604644775390625e-08;
-}
-
-uvec3 Pcg3d(uvec3 v)
-{
-  v = v * 1664525u + 1013904223u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  v ^= v >> 16u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  return v;
-}
-
-vec3 Hash(ivec3 u)
-{
-  u = ivec3(Pcg3d(uvec3(u)));
-  vec3 v;
-  v.x = UintToUnitFloat(u.x);
-  v.y = UintToUnitFloat(u.y);
-  v.z = UintToUnitFloat(u.z);
-  return v * 2.f - 1.f;
-}
-
-vec3 HashU(uvec3 u)
-{
-  u = Pcg3d(u);
-  vec3 v;
-  v.x = UintToUnitFloat(u.x);
-  v.y = UintToUnitFloat(u.y);
-  v.z = UintToUnitFloat(u.z);
-  return v * 2.f - 1.f;
-}
 
 mat3 RootBisectorVertices(uint halfedgeID)
 {
@@ -154,33 +111,11 @@ mat3 BisectorVertices(const uint64_t bisectorIndex, const uint bisectorDepth, ou
 
   mat3 rootVecs = RootBisectorVertices(halfedgeID);
 
-  mat3 fBM = mat3(0.f);
-  float a = 0.5f;
-  float gridSize = noiseTopGridSize / 2.f;
-
   mat3 m = mat3(1.f);
   for (int d = int(bisectorDepth) - 1; d > 0; d--) // Compute subd. matrix
   {
-    mat3 hashVertices = rootVecs * m;
-    [[unroll]]
-    for (uint i = 0; i < 3; i++)
-    {
-      hashVertices[i] = normalize(hashVertices[i]) * planetScale;
-      hashVertices[i] = HashU(uvec3((hashVertices[i] + planetScale) * gridSize));
-    }
-
     bool b = (h & (1ul << d)) != 0;
     m *= (b ? m1 : m0);
-
-    mat3 offset = fBM + hashVertices * a;
-    vec3 n = normalize(cross(offset[1].xyz - offset[0].xyz, offset[2].xyz - offset[0].xyz));
-    /*if (n.z < 0.f)
-      debugPrintfEXT("n.z neg");*/
-    fBM += hashVertices * a / (1.f + n.z * n.z);
-    //fBM += hashVertices * a;
-    fBM *= (b ? m1 : m0); // Weight
-    a *= 0.7f;
-    gridSize *= 2.f;
   }
 
   mat3 parentVertices = rootVecs * m;
@@ -197,99 +132,8 @@ mat3 BisectorVertices(const uint64_t bisectorIndex, const uint bisectorDepth, ou
   if (bisectorDepth > 0)
   {
     currVerts *= (b ? m1 : m0);
-    fBM *= (b ? m1 : m0);
-  }
-  [[unroll]]
-  for (uint i = 0; i < 3; i++)
-  {
-    const vec3 spherePos = normalize(currVerts[i]);
-    currVerts[i] = spherePos * planetScale;
-    currVerts[i] += spherePos * fBM[i] * (planetScale * 0.03f);
   }
   return currVerts;
-}
-
-vec4 Displace(vec3 v)
-{
-  // Grid
-  ivec3 i = ivec3(floor(v));
-  vec3 f = fract(v);
-
-  // Quintic interpolant
-  vec3 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
-  vec3 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
-
-  // Gradients
-  vec3 ga = Hash(i + ivec3(0, 0, 0));
-  vec3 gb = Hash(i + ivec3(1, 0, 0));
-  vec3 gc = Hash(i + ivec3(0, 1, 0));
-  vec3 gd = Hash(i + ivec3(1, 1, 0));
-  vec3 ge = Hash(i + ivec3(0, 0, 1));
-  vec3 gf = Hash(i + ivec3(1, 0, 1));
-  vec3 gg = Hash(i + ivec3(0, 1, 1));
-  vec3 gh = Hash(i + ivec3(1, 1, 1));
-
-  // Projections
-  float va = dot(ga, f - vec3(0.f, 0.f, 0.f));
-  float vb = dot(gb, f - vec3(1.f, 0.f, 0.f));
-  float vc = dot(gc, f - vec3(0.f, 1.f, 0.f));
-  float vd = dot(gd, f - vec3(1.f, 1.f, 0.f));
-  float ve = dot(ge, f - vec3(0.f, 0.f, 1.f));
-  float vf = dot(gf, f - vec3(1.f, 0.f, 1.f));
-  float vg = dot(gg, f - vec3(0.f, 1.f, 1.f));
-  float vh = dot(gh, f - vec3(1.f, 1.f, 1.f));
-
-  // Interpolation
-  float x = va +
-            u.x * (vb - va) +
-            u.y * (vc - va) +
-            u.z * (ve - va) +
-            u.x * u.y * (va - vb - vc + vd) +
-            u.y * u.z * (va - vc - ve + vg) +
-            u.z * u.x * (va - vb - ve + vf) +
-            u.x * u.y * u.z * (-va + vb + vc - vd + ve - vf - vg + vh);
-
-  // Derivative
-  vec3 d = ga +
-    u.x * (gb - ga) +
-    u.y * (gc - ga) +
-    u.z * (ge - ga) +
-    u.x * u.y * (ga - gb - gc + gd) +
-    u.y * u.z * (ga - gc - ge + gg) +
-    u.z * u.x * (ga - gb - ge + gf) +
-    u.x * u.y * u.z * (-ga + gb + gc - gd + ge - gf - gg + gh) +
-    du * (vec3(vb - va, vc - va, ve - va) +
-    u.yzx * vec3(va - vb - vc + vd, va - vc - ve + vg,va - vb - ve + vf) +
-    u.zxy * vec3(va - vb - ve + vf, va - vb - vc + vd,va - vc - ve + vg) +
-    u.yzx * u.zxy * (-va + vb + vc - vd + ve - vf - vg + vh));
-
-  return vec4(x, d);
-}
-
-vec3 Terrain(vec3 v, inout vec3 normal)
-{
-  v = normalize(v); // Sphere
-
-  float H = 0.7f;
-  float G = exp2(-H);
-  float f = baseFbmFrequency;
-  float a = baseFbmAmplitude;
-  float t = 0.f;
-  vec3 d = vec3(0.f);
-  normal = vec3(0.f);
-  for(uint i = 0; i < 10; i++)
-  {
-    vec4 vd = Displace(v * f);
-    d += vd.yzw;
-    normal += a * vd.yzw / (1.f + dot(d, d));
-    //normal += a * vd.yzw;
-    t += a * vd.x / (1.f + dot(d, d));
-    f *= 2.f;
-    a *= G;
-  }
-
-  // t ~ ]-baseFbmAmplitude,baseFbmAmplitude[
-  return t * v * (planetScale * 0.03f) + v * planetScale;
 }
 
 void main()
@@ -312,21 +156,12 @@ void main()
   vec3 parentVertex = vec3(0.f);
   mat3 v = BisectorVertices(bisectorIndex, depth, parentVertex);
 
-  if (depth > 0)
-  {
-    // vec3 parentD;
-    // parentVertex = Terrain(parentVertex, parentD);
-    parentVertex = normalize(parentVertex) * planetScale;
-  }
+  //const vec3 n = normalize(cross(v[1].xyz - v[0].xyz, v[2].xyz - v[0].xyz));
 
   uint vertexOffset = gl_GlobalInvocationID.x * 3;
   for (uint i = 0; i < 3; i++)
   {
-    vec3 d = vec3(1.f);
-    // v[i] = Terrain(v[i], d);
-    // v[i] = normalize(v[i]) * planetScale;
-
     outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);
-    outVertices[vertexOffset + i].normal = vec4(normalize(d), 1.f);
+    //outVertices[vertexOffset + i].normal = vec4(n, 1.f);
   }
 }

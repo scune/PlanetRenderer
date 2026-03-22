@@ -13,8 +13,7 @@ public:
   CbtBisection() = default;
 
   void Init(uint32_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
-            InitializerList<glm::vec4> rootVertices, const Buffer& vertexBuffer,
-            float scale);
+            const Buffer& vertexBuffer, float scale);
   void Destroy();
 
   void Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
@@ -39,7 +38,6 @@ private:
 
   void InitConstPushConstantData(uint32_t maxSubdivision,
                                  InitializerList<Cbt::Halfedge> halfedges,
-                                 InitializerList<glm::vec4> rootVertices,
                                  float scale) noexcept;
 
   void InitBuffers(const uint32_t halfedgeCount);
@@ -93,12 +91,16 @@ private:
 
   VkShaderEXT mCacheVertexShader{VK_NULL_HANDLE};
 
+  VkShaderEXT mIndirectDispatchVertexShader{VK_NULL_HANDLE};
+  VkShaderEXT mPlanetDisplacementShader{VK_NULL_HANDLE};
+
   VkPipelineLayout mLayout{VK_NULL_HANDLE};
 
   struct SumReducPushConstants
   {
     uint32_t depth;
   };
+  VkPushConstantRange mSumReducPushConstantRange{};
 
   struct GenCmdsPushConstants
   {
@@ -109,8 +111,8 @@ private:
     float planetScale;
     float baseFbmFrequency;
     float baseFbmAmplitude;
-    float noiseTopGridSize;
   } mGenCmdsPushConstants{};
+  VkPushConstantRange mGenCmdsPushConstantRange{};
 
   struct GlobalUpdate_t
   {
@@ -132,6 +134,7 @@ private:
   void UpdateBitfield(VkCommandBuffer cmdBuffer);
   void SumReduction(VkCommandBuffer cmdBuffer);
   void CacheVertices(VkCommandBuffer cmdBuffer);
+  void PlanetDisplacement(VkCommandBuffer cmdBuffer);
 
   PFN_vkCmdBindShadersEXT vkCmdBindShadersEXT{nullptr};
 };
