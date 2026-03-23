@@ -231,22 +231,52 @@ vec3 TriplanarProjection(float blendSharpness)
 vec2 CubeProj(vec3 pos)
 {
   const vec3 absP = abs(pos);
-  vec3 uv = pos * 0.5f + 0.5f;
+  vec3 uv = pos;
 
   if (absP.x > absP.y && absP.x > absP.z) // x
   {
-    return uv.yz;
+    if (uv.x < 0.f)
+      uv.y *= -1.f;
+    uv.xy = uv.yz / absP.x;
   }
   else if (absP.y > absP.z) // y
   {
-    //if (pos.y < 0.f)
-    //  uv.x = 1.f - uv.x;
-    return uv.xz;
+    if (uv.y > 0.f)
+      uv.x *= -1.f;
+    uv.xy = uv.xz / absP.y;
   }
   else // z
   {
-    return uv.xy;
+    uv.xy = uv.xy / absP.z;
   }
+  return uv.xy * 0.5f + 0.5f;
+}
+
+vec2 CubeProjPlane(vec3 pos, out uint planeID)
+{
+  const vec3 absP = abs(pos);
+  vec3 uv = pos;
+
+  if (absP.x > absP.y && absP.x > absP.z) // x
+    {
+      planeID = (pos.x > 0.f) ? 0 : 2;
+      if (uv.x < 0.f)
+        uv.y *= -1.f;
+      uv.xy = uv.yz / absP.x;
+    }
+  else if (absP.y > absP.z) // y
+    {
+      planeID = (pos.y > 0.f) ? 1 : 3;
+      if (uv.y > 0.f)
+        uv.x *= -1.f;
+      uv.xy = uv.xz / absP.y;
+    }
+  else // z
+    {
+      planeID = (pos.z > 0.f) ? 4 : 5;
+      uv.xy = uv.xy / absP.z;
+    }
+  return uv.xy * 0.5f + 0.5f;
 }
 
 void main()
@@ -256,8 +286,11 @@ void main()
   // Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
   // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
   //Swapchain = vec4(TriplanarProjection(10.f), 1.f);
-  Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
+  Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
+  //uint plane;
+  //vec2 cube = CubeProjPlane(normalize(inPos.xyz), plane);
+  //Swapchain = vec4(cube * plane / 5.f * inNormal.xy, 0.f, 1.f);
+  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
   //Swapchain = vec4(inNormal.xyz, 1.f);
-  //Swapchain = vec4(inNormal.w / 10.f);
   // Swapchain = vec4(TerrainColor(inPos) * Light(), 1.f);
 }
