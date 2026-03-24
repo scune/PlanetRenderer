@@ -90,7 +90,7 @@ vec2 Uvec2ToUnitVec2(const uvec2 u)
 }
 
 vec2 Hash2D(uvec2 u, uint planeID)
-{
+{/*
   if (u.y == fbmFrequency)
   {
     if (planeID == 2)
@@ -99,9 +99,9 @@ vec2 Hash2D(uvec2 u, uint planeID)
     }
     else if (planeID == 4)
     {
-      return -vec2(u.x) / 25.f;
+      return vec2(u.x) / 25.f;
     }
-  }
+  }*/
   u = Pcg2D(u);
   return Uvec2ToUnitVec2(u) * 2.f - 1.f;
 }
@@ -159,12 +159,21 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
       break;
     case 2: // -x
       xu.x = int(extent.y) - xu.x;
-      xu.x += 2 * int(extent.z);
-      xu.y = int(extent.z);
+      xu.x += 4 * int(extent.z);
+      xu.y += 1;
 
       xoffset.z = -1;
 
       transform = 2;
+      break;
+    case 3: // -y
+      xu.y = int(extent.y) - xu.x;
+      xu.x = 4 * int(extent.z);
+
+      xoffset.z = 0;
+      yoffset = -1;
+
+      transform = 3;
       break;
     }
   }
@@ -179,17 +188,30 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
   switch (transform)
   {
   case 1:
-    float x_temp = gc.x;
-    gc.x = gc.y;
-    gc.y = -x_temp;
+    {
+      float x_temp = gc.x;
+      gc.x = gc.y;
+      gc.y = -x_temp;
 
-    x_temp = gd.x;
-    gd.x = gd.y;
-    gd.y = -x_temp;
+      x_temp = gd.x;
+      gd.x = gd.y;
+      gd.y = -x_temp;
+    }
     break;
   case 2:
     gc *= -1.f;
     gd *= -1.f;
+    break;
+  case 3:
+    {
+      float x_temp = gc.x;
+      gc.x = -gc.y;
+      gc.y = x_temp;
+
+      x_temp = gd.x;
+      gd.x = -gd.y;
+      gd.y = x_temp;
+    }
     break;
   }
 
