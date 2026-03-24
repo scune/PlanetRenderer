@@ -109,7 +109,7 @@ private:
     uint32_t baseBisectorIndex;
     uint32_t pixelCount;
     float planetScale;
-    float fbmFrequency;
+    uint32_t fbmFrequency;
     float fbmAmplitude;
   } mGenCmdsPushConstants{};
   VkPushConstantRange mGenCmdsPushConstantRange{};

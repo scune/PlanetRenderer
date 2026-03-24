@@ -247,7 +247,9 @@ vec2 CubeProj(vec3 pos)
   }
   else // z
   {
-    uv.xy = uv.xy / absP.z;
+    if (uv.z > 0.f)
+      uv.x *= -1.f;
+    uv.xy = uv.yx / absP.z;
   }
   return uv.xy * 0.5f + 0.5f;
 }
@@ -274,7 +276,9 @@ vec2 CubeProjPlane(vec3 pos, out uint planeID)
   else // z
     {
       planeID = (pos.z > 0.f) ? 4 : 5;
-      uv.xy = uv.xy / absP.z;
+      if (uv.z > 0.f)
+        uv.x *= -1.f;
+      uv.xy = uv.yx / absP.z;
     }
   return uv.xy * 0.5f + 0.5f;
 }
@@ -286,11 +290,15 @@ void main()
   // Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
   // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
   //Swapchain = vec4(TriplanarProjection(10.f), 1.f);
-  Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
+  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
   //uint plane;
   //vec2 cube = CubeProjPlane(normalize(inPos.xyz), plane);
   //Swapchain = vec4(cube * plane / 5.f * inNormal.xy, 0.f, 1.f);
   //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  //Swapchain = vec4(inNormal.xyz, 1.f);
+  //vec2 mask = vec2(greaterThan(inNormal.xy, vec2(0.98f)));
+  //mask += vec2(lessThan(inNormal.xy, vec2(0.02f)));
+  //Swapchain = vec4(mask, 0.f, 1.f);
+  //Swapchain = vec4(inNormal.xy, 0.f, 1.f);
+  Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * max(0.3f, inNormal.w), 0.f, 1.f);
   // Swapchain = vec4(TerrainColor(inPos) * Light(), 1.f);
 }

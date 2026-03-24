@@ -96,7 +96,7 @@ void CbtBisection::InitConstPushConstantData(
   mGenCmdsPushConstants.pixelCount =
       gSwapchain.GetExtent().width * gSwapchain.GetExtent().height;
   mGenCmdsPushConstants.planetScale = scale;
-  mGenCmdsPushConstants.fbmFrequency = 10.f;
+  mGenCmdsPushConstants.fbmFrequency = 10;
   mGenCmdsPushConstants.fbmAmplitude = scale * 0.05f; // % of planet scale
 
   assert(mGenCmdsPushConstants.minDepth + mGenCmdsPushConstants.maxSubdivision <
@@ -594,7 +594,7 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
   }
 
   // Debug:
-  /*std::vector<glm::ivec2> debugData(10000);
+  std::vector<glm::ivec2> debugData(10000);
   BufferCopyFromHost(mDebugBuffer, debugData.data(), VecByteSize(debugData));
   uint32_t maxIdx = 0;
   for (uint32_t i = 0; i < debugData.size(); i++)
@@ -606,7 +606,7 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
     }
   }
   if (maxIdx != 0)
-    BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec2));*/
+    BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec2));
 }
 
 void CbtBisection::RecordCmds(VkCommandBuffer cmdBuffer)

@@ -21,6 +21,11 @@ layout(binding = 7, scalar) buffer OutVertices
   PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
 };
 
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec2 debugData[];
+};
+
 layout(push_constant, scalar) uniform PushConstant
 {
   layout(offset = 4)
@@ -29,7 +34,7 @@ layout(push_constant, scalar) uniform PushConstant
   uint baseBisectorIndex;
   uint pixelCount;
   float planetScale;
-  float fbmFrequency;
+  uint fbmFrequency;
   float fbmAmplitude;
 };
 
@@ -60,7 +65,9 @@ vec2 CubeProj(vec3 pos, out uint planeID)
   else // z
   {
     planeID = (pos.z > 0.f) ? 4 : 5;
-    uv.xy = uv.xy / absP.z;
+    if (uv.z > 0.f)
+      uv.x *= -1.f;
+    uv.xy = uv.yx / absP.z;
   }
   return uv.xy * 0.5f + 0.5f;
 }
@@ -82,65 +89,112 @@ vec2 Uvec2ToUnitVec2(const uvec2 u)
   return (u >> 8) * 5.9604644775390625e-08;
 }
 
-vec2 Hash2D(uvec2 u)
+vec2 Hash2D(uvec2 u, uint planeID)
 {
+  if (u.y == fbmFrequency)
+  {
+    if (planeID == 2)
+    {
+      return vec2(u.x) / 20.f;
+    }
+    else if (planeID == 4)
+    {
+      return -vec2(u.x) / 25.f;
+    }
+  }
   u = Pcg2D(u);
-  return Uvec2ToUnitVec2(u);
+  return Uvec2ToUnitVec2(u) * 2.f - 1.f;
 }
 
 // Accepts an unsigned vec2
-vec3 PerlinNoise2D(vec2 x, const uvec2 extent, const uint planeID)
+vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
 {
   ivec2 xu = ivec2(x);
   vec2 f = fract(x);
 
-  ivec2 offset = ivec2(1);
-  if (any(equal(xu, uvec2(extent.x))) || any(equal(xu, uvec2(extent.y))))
+  //if (xu.x >= 4 * int(fbmFrequency) && xu.y == 0 && xu.x < 5 * int(fbmFrequency))
+  //  return vec3(0.f);
+
+  ivec2 originalXu = xu;
+
+  ivec3 xoffset = ivec3(1, 0, 1);
+  switch (planeID)
+  {
+  case 0: // +x
+    if (xu.y == extent.z - 1) // access +z
+    {
+      xoffset.yz += 4 * int(extent.z);
+    }
+    break;
+  case 3: // -y
+    if (xu.x == extent.y - 1) // access +x
+    {
+      xoffset.xz -= ivec2(extent.y);
+    }
+    break;
+  }
+
+  vec2 ga = Hash2D(uvec2(xu + ivec2(0,         0)), planeID);
+  vec2 gb = Hash2D(uvec2(xu + ivec2(xoffset.x, 0)), planeID);
+
+  int yoffset = 0;
+  uint transform = 0;
+  if (xu.y == extent.z - 1 && planeID != 4) // access +z
   {
     switch (planeID)
     {
     case 0: // +x
-      if (xu.x == extent.y) // access +y
-      {
-        //return vec3(0.f);
-      }
-      //debugPrintfEXT("ext: %u, %u", extent.x, extent.y);
+      xu.y += 1;
+      xu.y %= int(extent.z);
       break;
     case 1: // +y
-      if (xu.x == extent.x) // access +x
-      {
-        //return vec3(0.f);
-        //debugPrintfEXT("ext: %u, %u", extent.x, extent.y);
-        //xOff = -int(extent.x); // = -20
-        //xOff += 1;
-        //debugPrintfEXT("xOff: %i", xOff);
-        //debugPrintfEXT("xu: %i", xu + xOff);
-        //xu.x -= extent.x;
-        //f.x = 1.f - f.x;
-      }
-      else if (xu.x == extent.y) // access -x
-      {
-        //return vec3(0.f);
-        //xu.x -= extent.x;
-        //xu.x = extent.y - xu.x; // Mirror
-        //xu.x -= uint(fbmFrequency); // TODO: fbmFrequency to uint
-      }
+      xu.y = xu.x - int(extent.x);
+      xu.x = 5 * int(extent.z);
+
+      xoffset.z = 0;
+      yoffset = 1;
+
+      transform = 1;
+      //f.x = 1.f - f.x;
+      break;
+    case 2: // -x
+      xu.x = int(extent.y) - xu.x;
+      xu.x += 2 * int(extent.z);
+      xu.y = int(extent.z);
+
+      xoffset.z = -1;
+
+      transform = 2;
       break;
     }
+  }
+  else
+  {
+    xu.y += 1;
+  }
+
+  vec2 gc = Hash2D(uvec2(xu + ivec2(xoffset.y, 0)), planeID);
+  vec2 gd = Hash2D(uvec2(xu + ivec2(xoffset.z, yoffset)), planeID);
+
+  switch (transform)
+  {
+  case 1:
+    float x_temp = gc.x;
+    gc.x = gc.y;
+    gc.y = -x_temp;
+
+    x_temp = gd.x;
+    gd.x = gd.y;
+    gd.y = -x_temp;
+    break;
+  case 2:
+    gc *= -1.f;
+    gd *= -1.f;
+    break;
   }
 
   vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
   vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
-
-  vec2 ga = Hash2D(uvec2(xu + ivec2(0,        0)));
-  vec2 gb = Hash2D(uvec2(xu + ivec2(offset.x, 0)));
-  vec2 gc = Hash2D(uvec2(xu + ivec2(0,        offset.y)));
-  vec2 gd = Hash2D(uvec2(xu + ivec2(offset.x, offset.y)));
-
-  if (planeID == 0 && xu.x == extent.y)
-  {
-    debugPrintfEXT("f: %f, %f", f.x, f.y);
-  }
 
   float va = dot(ga, f - vec2(0.f, 0.f));
   float vb = dot(gb, f - vec2(1.f, 0.f));
@@ -157,9 +211,9 @@ vec3 Terrain(vec2 p, const uint planeID)
   const mat2 m = mat2(0.8f, -0.6f,
                       0.6f,  0.8f);
 
-  p += planeID; // ]planeID, planeID + 1[
-  p *= fbmFrequency; // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
-  vec2 extent = vec2(float(planeID) * fbmFrequency, (float(planeID) + 0.999f) * fbmFrequency); // .x = min, .y = max
+  p.x += planeID; // ]planeID, planeID + 1[
+  p *= float(fbmFrequency); // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
+  uvec3 extent = uvec3(planeID * fbmFrequency, (planeID + 1) * fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
 
   float a = 0.f;
   float b = 1.f;
@@ -167,7 +221,7 @@ vec3 Terrain(vec2 p, const uint planeID)
   vec2 normal = vec2(0.f);
   for(int i = 0; i < 1; i++)
   {
-    vec3 n = PerlinNoise2D(p, uvec2(extent), planeID);
+    vec3 n = PerlinNoise2D(p, extent, planeID);
     if (n == vec3(0.f))
       return vec3(0.f);
     d += n.yz;
@@ -178,7 +232,7 @@ vec3 Terrain(vec2 p, const uint planeID)
     b *= 0.5f;
     //p = m * p * 2.f; // TODO: Only temp comment
     p *= 2.f;
-    extent *= 2.f;
+    extent <<= 1;
   }
   return vec3(a, normal);
 }
@@ -239,7 +293,8 @@ void main()
   {
     outVertices[vIdx].pos.xyz = v;
 
-    normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
+    //normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
+    normal.xy = uv;
     outVertices[vIdx].normal = normal;
   }
 }
