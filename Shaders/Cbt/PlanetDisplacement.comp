@@ -91,14 +91,16 @@ vec2 Uvec2ToUnitVec2(const uvec2 u)
 
 vec2 Hash2D(uvec2 u, uint planeID)
 {/*
-  if (u.y == fbmFrequency)
+  if (u.y == 0)
   {
     if (planeID == 2)
     {
-      return vec2(u.x) / 20.f;
+      debugData[u.x] = ivec2(u);
+      return vec2(u.x) / 10.f;
     }
-    else if (planeID == 4)
+    else if (planeID == 5)
     {
+      debugData[u.x + 10] = ivec2(u);
       return vec2(u.x) / 25.f;
     }
   }*/
@@ -117,7 +119,8 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
 
   ivec2 originalXu = xu;
 
-  ivec3 xoffset = ivec3(1, 0, 1);
+  uint transform = 0;
+  ivec4 xoffset = ivec4(1, 0, 1, 0);
   switch (planeID)
   {
   case 0: // +x
@@ -129,16 +132,33 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
   case 3: // -y
     if (xu.x == extent.y - 1) // access +x
     {
-      xoffset.xz -= ivec2(extent.y);
+      xoffset.xz -= int(extent.y);
+    }
+    break;
+  case 5: // -z
+    if (xu.y == extent.z - 1) // access +x
+    {
+      xoffset.yz -= 5 * int(extent.z);
+    }
+    else if (xu.y == 0) // access -y
+    {
+      xoffset.x = -1;
+      xoffset.xw -= xu.x;
+      xoffset.xw += int(extent.y) - xu.x;
+      xoffset.xw += 2 * int(extent.z);
+      transform = 5;
+    }
+    if (xu.x == int(extent.y) - 1) // access +y
+    {
+      xoffset.xz = 
     }
     break;
   }
 
-  vec2 ga = Hash2D(uvec2(xu + ivec2(0,         0)), planeID);
+  vec2 ga = Hash2D(uvec2(xu + ivec2(xoffset.w, 0)), planeID);
   vec2 gb = Hash2D(uvec2(xu + ivec2(xoffset.x, 0)), planeID);
 
   int yoffset = 0;
-  uint transform = 0;
   if (xu.y == extent.z - 1 && planeID != 4) // access +z
   {
     switch (planeID)
@@ -155,7 +175,6 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
       yoffset = 1;
 
       transform = 1;
-      //f.x = 1.f - f.x;
       break;
     case 2: // -x
       xu.x = int(extent.y) - xu.x;
@@ -174,6 +193,9 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
       yoffset = -1;
 
       transform = 3;
+      break;
+    case 5: // -z
+      xu.y = 0;
       break;
     }
   }
@@ -212,6 +234,10 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
       gd.x = -gd.y;
       gd.y = x_temp;
     }
+    break;
+  case 5:
+    ga *= -1.f;
+    gb *= -1.f;
     break;
   }
 
