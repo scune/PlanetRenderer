@@ -86,7 +86,7 @@ void Context::Init(bool force_x11)
   deviceFeatures.AddFeature(enabledSynchronization2Features);
   // deviceFeatures.AddFeature(enabledHostImageCopyFeatures);
   deviceFeatures.AddFeature(enabledDynamicRenderingFeatures);
-  deviceFeatures.AddFeature(enabledMaintenance9Features);
+  // deviceFeatures.AddFeature(enabledMaintenance9Features);
   deviceFeatures.AddFeature(enabledMaintenance4Features);
   deviceFeatures.AddFeature(enabledShaderObjectFeatures);
   deviceFeatures.AddFeature(enabledRobustness2Features);

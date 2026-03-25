@@ -127,9 +127,9 @@ PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
 
   for (const auto& device : physicalDevices)
   {
-    /*VkPhysicalDeviceProperties props{};
+    VkPhysicalDeviceProperties props{};
     vkGetPhysicalDeviceProperties(device, &props);
-    COUT("Physical device name: " << props.deviceName);*/
+    COUT("Physical device name: " << props.deviceName);
 
     if (IsDeviceSuitable(device, surface, requestedDeviceExtensions,
                          requestedDeviceExtCount, deviceFeatures,

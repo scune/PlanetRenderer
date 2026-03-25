@@ -346,7 +346,6 @@ void main()
   {
     v = outVertices[vIdx].pos.xyz;
   }
-  v = normalize(v); // Project to sphere
 
   uint planeID;
   vec2 uv = CubeProj(v, planeID);
@@ -372,7 +371,7 @@ void main()
     outVertices[vIdx].pos.xyz = v;
 
     //normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
-    normal.xy = uv;
-    outVertices[vIdx].normal = normal;
+    //normal.xy = uv;
+    //outVertices[vIdx].normal = normal;
   }
 }
