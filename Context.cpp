@@ -10,11 +10,17 @@ void Context::Init(bool force_x11)
 {
   CreateWindow(force_x11);
   CreateVulkan();
-
-  std::array<const char*, 3> extensions{
+  std::array<const char*, 4> extensions{
       VK_KHR_SWAPCHAIN_EXTENSION_NAME,
       VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-      VK_EXT_SHADER_OBJECT_EXTENSION_NAME};
+      VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
+      VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME};
+
+  VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR
+      enabledExecutableFeatures{};
+  enabledExecutableFeatures.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+  enabledExecutableFeatures.pipelineExecutableInfo = VK_TRUE;
 
   VkPhysicalDeviceSynchronization2Features enabledSynchronization2Features{};
   enabledSynchronization2Features.sType =
@@ -74,8 +80,9 @@ void Context::Init(bool force_x11)
   deviceFeatures.GetFeatures2().features.shaderInt16 = VK_TRUE;
   deviceFeatures.GetFeatures2().features.shaderInt64 = VK_TRUE;
 
-  deviceFeatures.Reserve(10);
+  deviceFeatures.Reserve(11);
 
+  deviceFeatures.AddFeature(enabledExecutableFeatures);
   deviceFeatures.AddFeature(enabledSynchronization2Features);
   // deviceFeatures.AddFeature(enabledHostImageCopyFeatures);
   deviceFeatures.AddFeature(enabledDynamicRenderingFeatures);

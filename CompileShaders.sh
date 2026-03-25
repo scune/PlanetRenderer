@@ -30,4 +30,4 @@ glslangValidator --target-env vulkan1.4 -V Shaders/Cbt/ValidateCmds.comp  -o Sha
 
 glslangValidator --target-env vulkan1.4 -V Shaders/Cbt/IndirectDispatchVertex.comp  -o Shaders/Compiled/Cbt/IndirectDispatchVertex.comp.spv
 
-glslangValidator --target-env vulkan1.4 -V Shaders/Cbt/PlanetDisplacement.comp  -o Shaders/Compiled/Cbt/PlanetDisplacement.comp.spv
+glslangValidator -g --target-env vulkan1.4 -V Shaders/Cbt/PlanetDisplacement.comp  -o Shaders/Compiled/Cbt/PlanetDisplacement.comp.spv

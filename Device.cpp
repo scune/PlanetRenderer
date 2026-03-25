@@ -123,8 +123,14 @@ PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
                                       physicalDevices.data()),
            "Failed to enumerate physical devices!");
 
+  // physicalDevices.erase(physicalDevices.begin());
+
   for (const auto& device : physicalDevices)
   {
+    /*VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(device, &props);
+    COUT("Physical device name: " << props.deviceName);*/
+
     if (IsDeviceSuitable(device, surface, requestedDeviceExtensions,
                          requestedDeviceExtCount, deviceFeatures,
                          queueFamilyIndices))
