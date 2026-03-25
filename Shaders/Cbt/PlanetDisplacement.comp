@@ -89,7 +89,7 @@ vec2 Uvec2ToUnitVec2(const uvec2 u)
   return (u >> 8) * 5.9604644775390625e-08;
 }
 
-vec2 Hash2D(uvec2 u, uint planeID)
+vec2 Hash2D(ivec2 i/*, uint planeID */)
 {/*
   if (u.y == 0)
   {
@@ -104,74 +104,70 @@ vec2 Hash2D(uvec2 u, uint planeID)
       return vec2(u.x) / 10.f;
     }
   }*/
+  uvec2 u = uvec2(i);
   u = Pcg2D(u);
   return Uvec2ToUnitVec2(u) * 2.f - 1.f;
 }
 
 // Accepts an unsigned vec2
-vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
+vec3 PerlinNoise2D(const vec2 x, const uvec3 extent, const uint planeID)
 {
-  ivec2 xu = ivec2(x);
-  vec2 f = fract(x);
+  ivec4 xoffset = ivec4(0, 1, 0, 1);
 
-  //if (xu.x >= 4 * int(fbmFrequency) && xu.y == 0 && xu.x < 5 * int(fbmFrequency))
-  //  return vec3(0.f);
-
-  ivec2 originalXu = xu;
+  ivec2 xu0 = ivec2(x);
+  ivec2 xu1 = xu0;
+  ivec2 xu2 = xu0;
+  ivec2 xu3 = xu0;
 
   uint transform = 0;
-  ivec4 xoffset = ivec4(1, 0, 1, 0);
-  ivec2 xu0 = xu;
-  ivec2 xu1 = xu;
-  ivec2 xu2 = xu;
-  ivec2 xu3 = xu;
   int yoffset = 0;
+
   switch (planeID)
   {
   case 0: // +x
-    if (xu.y == extent.z - 1) // access +z
+    if (xu0.y == extent.z - 1) // access +z
     {
-      xoffset.yz += 4 * int(extent.z);
+      xoffset.zw += 4 * int(extent.z);
     }
     break;
   case 3: // -y
-    if (xu.x == extent.y - 1) // access +x
+    if (xu0.x == extent.y - 1) // access +x
     {
-      xoffset.xz -= int(extent.y);
+      xoffset.yw -= int(extent.y);
     }
     break;
   case 5: // -z
-    if (xu.y == extent.z - 1) // access +x
+    if (xu0.y == extent.z - 1) // access +x
     {
-      xoffset.yz -= 5 * int(extent.z);
+      xoffset.zw -= 5 * int(extent.z);
     }
-    else if (xu.y == 0) // access -y
+    else if (xu0.y == 0) // access -y
     {
-      xoffset.x = -1;
-      xoffset.xw -= xu.x;
-      xoffset.xw += int(extent.y) - xu.x;
-      xoffset.xw += 2 * int(extent.z);
+      xoffset.y = -1;
+      xoffset.xy -= xu0.x;
+      xoffset.xy += int(extent.y) - xu0.x;
+      xoffset.xy += 2 * int(extent.z);
       transform = 5;
     }
-    else if (xu.x == int(extent.y) - 1) // access +y
+    else if (xu0.x == int(extent.y) - 1) // access +y
     {
       xu1.x = 2 * int(extent.z) - xu1.y;
       xu1.y = 0;
 
-      xu2 = xu1;
-      xu2.x -= 1;
+      xu3 = xu1;
+      xu3.x -= 1;
 
-      xoffset.xz = ivec2(0);
+      xoffset.yw = ivec2(0);
 
       transform = 6;
     }
-    else if (xu.x == int(extent.x)) // access -y
+    else if (xu0.x == int(extent.x)) // access -y
     {
       xu0.x = xu0.y + int(extent.z) * 3;
       xu0.y = 0;
 
-      xu3 = xu0;
-      xu3.x += 1;
+      xu2 = xu0;
+      xu2.x += 1;
 
       yoffset = 1;
 
@@ -180,135 +176,104 @@ vec3 PerlinNoise2D(vec2 x, const uvec3 extent, const uint planeID)
     break;
   }
 
-  if (transform != 6)
-  {
-    xu1 = xu;
-    xu2 = xu;
-  }
-  if (transform != 7)
-  {
-    xu0 = xu;
-    xu3 = xu;
-  }
+  vec2 ga = Hash2D(xu0 + ivec2(xoffset.x, 0));
+  vec2 gb = Hash2D(xu1 + ivec2(xoffset.y, 0));
 
-  vec2 ga = Hash2D(uvec2(xu0 + ivec2(xoffset.w, 0)), planeID);
-  vec2 gb = Hash2D(uvec2(xu1 + ivec2(xoffset.x, 0)), planeID);
+  xu2.y += int(transform < 6); // transform != 6 && transform != 7
+  xu3.y += int(transform < 6);
 
-  if (xu.y == extent.z - 1 && planeID != 4) // access +z
+  if (xu3.y == extent.z && planeID != 4) // access +z
   {
     switch (planeID)
     {
     case 0: // +x
-      xu.y += 1;
-      xu.y %= int(extent.z);
+      xu2.y %= int(extent.z);
+
+      xu3 = xu2;
       break;
     case 1: // +y
-      xu.y = xu.x - int(extent.x);
-      xu.x = 5 * int(extent.z);
+      xu2.y = xu3.x - int(extent.x);
+      xu2.x = 5 * int(extent.z);
 
-      xoffset.z = 0;
+      xu3 = xu2;
+
+      xoffset.w = 0;
       yoffset = 1;
 
       transform = 1;
       break;
     case 2: // -x
-      xu.x = int(extent.y) - xu.x;
-      xu.x += 4 * int(extent.z);
-      xu.y += 1;
+      xu2.x = int(extent.y) - xu3.x;
+      xu2.x += 4 * int(extent.z);
 
-      xoffset.z = -1;
+      xu3 = xu2;
+
+      xoffset.w = -1;
 
       transform = 2;
       break;
     case 3: // -y
-      xu.y = int(extent.y) - xu.x;
-      xu.x = 4 * int(extent.z);
+      xu2.y = int(extent.y) - xu3.x;
+      xu2.x = 4 * int(extent.z);
 
-      xoffset.z = 0;
+      xu3 = xu2;
+
+      xoffset.w = 0;
       yoffset = -1;
 
       transform = 3;
       break;
     case 5: // -z
-      xu.y = 0;
+      xu2.y = 0;
+      xu3 = xu2;
       break;
     }
   }
-  else if (!(planeID == 5 && xu.x == int(extent.x)))
-  {
-    xu.y += 1;
-  }
 
-  if (transform != 6)
-  {
-    xu1 = xu;
-    xu2 = xu;
-  }
-  if (transform != 7)
-  {
-    xu0 = xu;
-    xu3 = xu;
-  }
-
-  vec2 gc = Hash2D(uvec2(xu3 + ivec2(xoffset.y, 0)), planeID);
-  vec2 gd = Hash2D(uvec2(xu2 + ivec2(xoffset.z, yoffset)), planeID);
+  vec2 gc = Hash2D(xu2 + ivec2(xoffset.z, 0));
+  vec2 gd = Hash2D(xu3 + ivec2(xoffset.w, yoffset));
 
   switch (transform)
   {
   case 1:
-    {
-      float x_temp = gc.x;
-      gc.x = gc.y;
-      gc.y = -x_temp;
+    gc.xy = gc.yx;
+    gc.y *= -1.f;
 
-      x_temp = gd.x;
-      gd.x = gd.y;
-      gd.y = -x_temp;
-    }
+    gd.xy = gd.yx;
+    gd.y *= -1.f;
     break;
   case 2:
     gc *= -1.f;
     gd *= -1.f;
     break;
   case 3:
-    {
-      float x_temp = gc.x;
-      gc.x = -gc.y;
-      gc.y = x_temp;
+    gc.xy = gc.yx;
+    gc.x *= -1.f;
 
-      x_temp = gd.x;
-      gd.x = -gd.y;
-      gd.y = x_temp;
-    }
+    gd.xy = gd.yx;
+    gd.x *= -1.f;
     break;
   case 5:
     ga *= -1.f;
     gb *= -1.f;
     break;
   case 6:
-    {
-      float x_temp = gb.x;
-      gb.x = gb.y;
-      gb.y = -x_temp;
+    gb.xy = gb.yx;
+    gb.y *= -1.f;
 
-      x_temp = gd.x;
-      gd.x = gd.y;
-      gd.y = -x_temp;
-    }
+    gd.xy = gd.yx;
+    gd.y *= -1.f;
     break;
   case 7:
-    {
-      float x_temp = ga.x;
-      ga.x = -ga.y;
-      ga.y = x_temp;
+    ga.xy = ga.yx;
+    ga.x *= -1.f;
 
-      x_temp = gc.x;
-      gc.x = -gc.y;
-      gc.y = x_temp;
-    }
+    gc.xy = gc.yx;
+    gc.x *= -1.f;
     break;
   }
 
+  vec2 f = fract(x);
   vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
   vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
 
@@ -331,26 +296,24 @@ vec3 Terrain(vec2 p, const uint planeID)
   p *= float(fbmFrequency); // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
   uvec3 extent = uvec3(planeID * fbmFrequency, (planeID + 1) * fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
 
-  float a = 0.f;
+  vec3 an = vec3(0.f); // .x = height, .y = derivate
   float b = 1.f;
   vec2 d = vec2(0.f);
-  vec2 normal = vec2(0.f);
   for(int i = 0; i < 10; i++)
   {
     vec3 n = PerlinNoise2D(p, extent, planeID);
-    if (n == vec3(0.f))
-      return vec3(0.f);
+
     d += n.yz;
-    //a += b * n.x / (1.f + dot(d, d)); // TODO: Only temp comment
-    //normal += b * n.yz / (1.f + dot(d, d)); // TODO: Only temp comment
-    a += b * n.x;
-    normal += b * n.yz;
+
+    float erosion = 1.f + dot(d, d);
+    an += b * n / erosion;
+
     b *= 0.5f;
-    //p = m * p * 2.f; // TODO: Only temp comment
+    //p = m * p * 2.f; // TODO: Maybe fix?
     p *= 2.f;
     extent <<= 1;
   }
-  return vec3(a, normal);
+  return an;
 }
 
 vec3 AlignToNormal(const vec3 dir, const vec3 normal)
@@ -392,7 +355,6 @@ void main()
   ad *= fbmAmplitude;
   // TODO: Parent via subgroup op's
   v = v * ad.x + v * planetScale;
-  //v = v * planetScale;
 
   // TODO: x and y may be switched depending on which side of the cube we are on
   vec4 normal;
