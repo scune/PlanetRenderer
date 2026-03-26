@@ -161,6 +161,7 @@ void main()
   const vec3 n = normalize(v[0] + v[1] + v[2]);
 
   uint vertexOffset = gl_GlobalInvocationID.x * 3;
+  [[unroll]]
   for (uint i = 0; i < 3; i++)
   {
     outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);

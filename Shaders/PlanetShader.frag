@@ -4,8 +4,6 @@
 #extension GL_EXT_null_initializer : require
 #extension GL_GOOGLE_include_directive : enable
 
-#include "PlanetCommon.glsl"
-
 layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec4 inNormal;
 layout(location = 2) in flat uint inVertexID;
@@ -16,13 +14,6 @@ layout(binding = 2) uniform sampler2D texture2;
 layout(location = 0) out vec4 Swapchain;
 
 
-
-#define LIGHT vec3(-0.2f, -0.3f, 0.6f)
-
-float Light()
-{
-  return max(0.3f, dot(inNormal.xyz, LIGHT));
-}
 
 uint PcgHash(uint seed)
 {
@@ -45,7 +36,7 @@ float UintToUnitFloat(const uint i)
 {
   // 32 - 8 = 24 (exponent), 1.0 / (1 << 24) = 5.9604644775390625e-08
   // top bits are usually more random.
-  return (i >> 8) * 5.9604644775390625e-08;
+  return (i >> 8u) * 5.9604644775390625e-08;
 }
 
 uvec3 Pcg3d(uvec3 v)
@@ -63,12 +54,7 @@ uvec3 Pcg3d(uvec3 v)
 
 vec3 Hash3D(uvec3 u)
 {
-  u = Pcg3d(u);
-  vec3 v;
-  v.x = UintToUnitFloat(u.x);
-  v.y = UintToUnitFloat(u.y);
-  v.z = UintToUnitFloat(u.z);
-  return v;
+  return (Pcg3d(u) >> 8u) * 5.9604644775390625e-08;
 }
 
 vec2 Rotate(vec2 v, float angle)
@@ -211,36 +197,111 @@ vec3 TerrainColor()
   return color;
 }
 
+// Accepts unsigned x
+float PerlinNoise3D(vec3 x)
+{
+  uvec3 p = uvec3(x);
+  vec3 w = fract(x);
+
+  vec3 u = w*w*w*(w*(w*6.0-15.0)+10.0);
+
+  float a = Hash3D1D(p + uvec3(0, 0, 0));
+  float b = Hash3D1D(p + uvec3(1, 0, 0));
+  float c = Hash3D1D(p + uvec3(0, 1, 0));
+  float d = Hash3D1D(p + uvec3(1, 1, 0));
+  float e = Hash3D1D(p + uvec3(0, 0, 1));
+  float f = Hash3D1D(p + uvec3(1, 0, 1));
+  float g = Hash3D1D(p + uvec3(0, 1, 1));
+  float h = Hash3D1D(p + uvec3(1, 1, 1));
+
+  float k0 =   a;
+  float k1 =   b - a;
+  float k2 =   c - a;
+  float k3 =   e - a;
+  float k4 =   a - b - c + d;
+  float k5 =   a - c - e + g;
+  float k6 =   a - b - e + f;
+  float k7 = - a + b + c - d + e - f - g + h;
+
+  return k0 + k1*u.x + k2*u.y + k3*u.z + k4*u.x*u.y + k5*u.y*u.z + k6*u.z*u.x + k7*u.x*u.y*u.z;
+}
+
+void RotateMsc(inout vec3 worldPos, const vec3 blending, float offset)
+{
+  float rotation = 60.f * (offset + 0.5f);
+  if (blending.x > blending.y && blending.x > blending.z)
+  {
+    worldPos.yz = Rotate(worldPos.yz, rotation);
+  }
+  else if (blending.y > blending.z)
+  {
+    worldPos.xz = Rotate(worldPos.xz, rotation);
+  }
+  else
+  {
+    worldPos.xy = Rotate(worldPos.xy, rotation);
+  }
+}
+
 vec3 TriplanarProjection(float blendSharpness)
 {
-  vec3 blending = abs(inNormal.xyz);
+  //float slope = inNormal.z;
+  //bool rock = (slope < 0.6f);
+  bool rock = false;
+
+  vec3 blending = abs(inNormal.xyz); // TODO
+  //vec3 blending = abs(inNormal.xyz);
   blending = pow(blending, vec3(blendSharpness));
 
   float weightSum = blending.x + blending.y + blending.z;
   blending /= weightSum;
 
-  vec3 worldPos = inPos.xyz / 10.f;
+  vec3 worldPos = inPos.xyz / ((rock) ? 50.f : 10.f);
+
+  float alpha = PerlinNoise3D(worldPos * 0.2f + 1100.f);
+  vec3 offset = Hash3D(uvec3(worldPos / 50.f + 200.f));
+  //return vec3(offset);
+  //return vec3(alpha);
+
   vec3 color[3];
-  color[0] = texture(texture2, worldPos.yz).rgb;
-  color[1] = texture(texture2, worldPos.xz).rgb;
-  color[2] = texture(texture2, worldPos.xy).rgb;
+  if (rock)
+  {
+    color[0] = texture(texture1, worldPos.yz).rgb * (1.f - alpha);
+    color[1] = texture(texture1, worldPos.xz).rgb * (1.f - alpha);
+    color[2] = texture(texture1, worldPos.xy).rgb * (1.f - alpha);
+  }
+  else
+  {
+    color[0] = texture(texture2, worldPos.yz).rgb * (1.f - alpha);
+    color[1] = texture(texture2, worldPos.xz).rgb * (1.f - alpha);
+    color[2] = texture(texture2, worldPos.xy).rgb * (1.f - alpha);
+  }
+
+  RotateMsc(worldPos, blending, offset.x);
+  worldPos *= 0.6f * (offset.y + 0.5f);
+  worldPos += 0.7f * (offset.z + 0.5f);
+
+  if (rock)
+  {
+    color[0] += texture(texture1, worldPos.yz).rgb * alpha;
+    color[1] += texture(texture1, worldPos.xz).rgb * alpha;
+    color[2] += texture(texture1, worldPos.xy).rgb * alpha;
+  }
+  else
+  {
+    color[0] += texture(texture2, worldPos.yz).rgb * alpha;
+    color[1] += texture(texture2, worldPos.xz).rgb * alpha;
+    color[2] += texture(texture2, worldPos.xy).rgb * alpha;
+  }
 
   return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
 }
 
 void main()
 {
-  // Swapchain = vec4(Light());
-  // Swapchain = vec4(TerrainColor(), 1.f);
-  // Swapchain = vec4(floor(inPos.xyz * 0.00309978f) / 30.f, 1.f);
   // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  Swapchain = vec4(TriplanarProjection(10.f), 1.f);
-  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
-  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  //vec2 mask = vec2(greaterThan(inNormal.xy, vec2(0.98f)));
-  //mask += vec2(lessThan(inNormal.xy, vec2(0.02f)));
-  //Swapchain = vec4(mask, 0.f, 1.f);
-  //Swapchain = vec4(inNormal.xyz, 1.f);
-  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * max(0.3f, inNormal.w), 0.f, 1.f);
-  //Swapchain = vec4(TerrainColor(inPos) * Light(), 1.f);
+  //Swapchain = vec4(TriplanarProjection(10.f), 1.f);
+  // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
+  // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
+  Swapchain = vec4(inNormal.xyz, 1.f);
 }

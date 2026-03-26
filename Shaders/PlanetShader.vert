@@ -1,8 +1,4 @@
 #version 460
-#extension GL_EXT_debug_printf : require
-#extension GL_GOOGLE_include_directive : enable
-
-#include "PlanetCommon.glsl"
 
 layout(location = 0) in vec4 inPos;
 layout(location = 1) in vec4 inNormal;

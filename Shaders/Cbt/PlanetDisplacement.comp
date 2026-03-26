@@ -296,17 +296,18 @@ vec3 Terrain(vec2 p, const uint planeID)
   p *= float(fbmFrequency); // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
   uvec3 extent = uvec3(planeID * fbmFrequency, (planeID + 1) * fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
 
-  vec3 an = vec3(0.f); // .x = height, .y = derivate
+  vec3 an = vec3(0.f); // .x = height, .yz = derivate
   float b = 1.f;
   vec2 d = vec2(0.f);
-  for(int i = 0; i < 10; i++)
+  for (int i = 0; i < 10; i++)
   {
     vec3 n = PerlinNoise2D(p, extent, planeID);
 
     d += n.yz;
 
     float erosion = 1.f + dot(d, d);
-    an += b * n / erosion;
+    an.x += b * n.x / erosion;
+    an.yz += b * n.yz;
 
     b *= 0.5f;
     //p = m * p * 2.f; // TODO: Maybe fix?
@@ -351,12 +352,12 @@ void main()
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
-  ad *= fbmAmplitude;
+  ad.x *= fbmAmplitude;
   // TODO: Parent via subgroup op's
   v = v * ad.x + v * planetScale;
 
   // TODO: x and y may be switched depending on which side of the cube we are on
-  vec4 normal;
+  vec4 normal = vec4(0.f);
   normal.xyz = normalize(vec3(-ad.yz, 1.f));
   normal.w = ad.x;
 
@@ -370,8 +371,7 @@ void main()
   {
     outVertices[vIdx].pos.xyz = v;
 
-    //normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
-    //normal.xy = uv;
-    //outVertices[vIdx].normal = normal;
+    normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
+    outVertices[vIdx].normal = normal;
   }
 }

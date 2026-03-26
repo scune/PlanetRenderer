@@ -356,28 +356,28 @@ void CbtBisection::CreateComputeShaders(
   GetVkFuncAuto(gContext.GetInstance(), vkCreateShadersEXT);
 
   std::vector<uint32_t> shaderCodeIndirectDispatch;
-  Shader::LoadSPV("Cbt/IndirectDispatch.comp.spv", shaderCodeIndirectDispatch);
+  Shader::LoadSPV("IndirectDispatch.comp.spv", shaderCodeIndirectDispatch);
   shaderCreateInfos[0].codeSize = VecByteSize(shaderCodeIndirectDispatch);
   shaderCreateInfos[0].pCode = shaderCodeIndirectDispatch.data();
   shaderCreateInfos[0].setLayoutCount = 1;
   shaderCreateInfos[0].pSetLayouts = &mIndirectDispatchSetLayout;
 
   std::vector<uint32_t> shaderCodeCachePointers;
-  Shader::LoadSPV("Cbt/CachePointers.comp.spv", shaderCodeCachePointers);
+  Shader::LoadSPV("CachePointers.comp.spv", shaderCodeCachePointers);
   shaderCreateInfos[1].codeSize = VecByteSize(shaderCodeCachePointers);
   shaderCreateInfos[1].pCode = shaderCodeCachePointers.data();
   shaderCreateInfos[1].setLayoutCount = setLayouts.size();
   shaderCreateInfos[1].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeResetCmds;
-  Shader::LoadSPV("Cbt/ResetCommands.comp.spv", shaderCodeResetCmds);
+  Shader::LoadSPV("ResetCommands.comp.spv", shaderCodeResetCmds);
   shaderCreateInfos[2].codeSize = VecByteSize(shaderCodeResetCmds);
   shaderCreateInfos[2].pCode = shaderCodeResetCmds.data();
   shaderCreateInfos[2].setLayoutCount = setLayouts.size();
   shaderCreateInfos[2].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeClassify;
-  Shader::LoadSPV("Cbt/Classify.comp.spv", shaderCodeClassify);
+  Shader::LoadSPV("Classify.comp.spv", shaderCodeClassify);
   shaderCreateInfos[3].codeSize = VecByteSize(shaderCodeClassify);
   shaderCreateInfos[3].pCode = shaderCodeClassify.data();
   shaderCreateInfos[3].setLayoutCount = setLayouts.size();
@@ -386,7 +386,7 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[3].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   std::vector<uint32_t> shaderCodeGenCmds;
-  Shader::LoadSPV("Cbt/GenerateCmds.comp.spv", shaderCodeGenCmds);
+  Shader::LoadSPV("GenerateCmds.comp.spv", shaderCodeGenCmds);
   shaderCreateInfos[4].codeSize = VecByteSize(shaderCodeGenCmds);
   shaderCreateInfos[4].pCode = shaderCodeGenCmds.data();
   shaderCreateInfos[4].setLayoutCount = setLayouts.size();
@@ -395,42 +395,42 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[4].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   std::vector<uint32_t> shaderCodeValidateCmds;
-  Shader::LoadSPV("Cbt/ValidateCmds.comp.spv", shaderCodeValidateCmds);
+  Shader::LoadSPV("ValidateCmds.comp.spv", shaderCodeValidateCmds);
   shaderCreateInfos[5].codeSize = VecByteSize(shaderCodeValidateCmds);
   shaderCreateInfos[5].pCode = shaderCodeValidateCmds.data();
   shaderCreateInfos[5].setLayoutCount = setLayouts.size();
   shaderCreateInfos[5].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeReserveBlocks;
-  Shader::LoadSPV("Cbt/ReserveBlocks.comp.spv", shaderCodeReserveBlocks);
+  Shader::LoadSPV("ReserveBlocks.comp.spv", shaderCodeReserveBlocks);
   shaderCreateInfos[6].codeSize = VecByteSize(shaderCodeReserveBlocks);
   shaderCreateInfos[6].pCode = shaderCodeReserveBlocks.data();
   shaderCreateInfos[6].setLayoutCount = setLayouts.size();
   shaderCreateInfos[6].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeFillNewBlocks;
-  Shader::LoadSPV("Cbt/FillNewBlocks.comp.spv", shaderCodeFillNewBlocks);
+  Shader::LoadSPV("FillNewBlocks.comp.spv", shaderCodeFillNewBlocks);
   shaderCreateInfos[7].codeSize = VecByteSize(shaderCodeFillNewBlocks);
   shaderCreateInfos[7].pCode = shaderCodeFillNewBlocks.data();
   shaderCreateInfos[7].setLayoutCount = setLayouts.size();
   shaderCreateInfos[7].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeUpdateNeighbours;
-  Shader::LoadSPV("Cbt/UpdateNeighbours.comp.spv", shaderCodeUpdateNeighbours);
+  Shader::LoadSPV("UpdateNeighbours.comp.spv", shaderCodeUpdateNeighbours);
   shaderCreateInfos[8].codeSize = VecByteSize(shaderCodeUpdateNeighbours);
   shaderCreateInfos[8].pCode = shaderCodeUpdateNeighbours.data();
   shaderCreateInfos[8].setLayoutCount = setLayouts.size();
   shaderCreateInfos[8].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeUpdateBitfield;
-  Shader::LoadSPV("Cbt/UpdateBitfield.comp.spv", shaderCodeUpdateBitfield);
+  Shader::LoadSPV("UpdateBitfield.comp.spv", shaderCodeUpdateBitfield);
   shaderCreateInfos[9].codeSize = VecByteSize(shaderCodeUpdateBitfield);
   shaderCreateInfos[9].pCode = shaderCodeUpdateBitfield.data();
   shaderCreateInfos[9].setLayoutCount = setLayouts.size();
   shaderCreateInfos[9].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodeSumReduction;
-  Shader::LoadSPV("Cbt/SumReduction.comp.spv", shaderCodeSumReduction);
+  Shader::LoadSPV("SumReduction.comp.spv", shaderCodeSumReduction);
   shaderCreateInfos[10].codeSize = VecByteSize(shaderCodeSumReduction);
   shaderCreateInfos[10].pCode = shaderCodeSumReduction.data();
   shaderCreateInfos[10].setLayoutCount = setLayouts.size();
@@ -439,7 +439,7 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[10].pPushConstantRanges = &mSumReducPushConstantRange;
 
   std::vector<uint32_t> shaderCodeCacheVertices;
-  Shader::LoadSPV("Cbt/CacheVertices.comp.spv", shaderCodeCacheVertices);
+  Shader::LoadSPV("CacheVertices.comp.spv", shaderCodeCacheVertices);
   shaderCreateInfos[11].codeSize = VecByteSize(shaderCodeCacheVertices);
   shaderCreateInfos[11].pCode = shaderCodeCacheVertices.data();
   shaderCreateInfos[11].setLayoutCount = setLayouts.size();
@@ -448,15 +448,14 @@ void CbtBisection::CreateComputeShaders(
   shaderCreateInfos[11].pPushConstantRanges = &mGenCmdsPushConstantRange;
 
   std::vector<uint32_t> shaderCodeIndDispVertex;
-  Shader::LoadSPV("Cbt/IndirectDispatchVertex.comp.spv",
-                  shaderCodeIndDispVertex);
+  Shader::LoadSPV("IndirectDispatchVertex.comp.spv", shaderCodeIndDispVertex);
   shaderCreateInfos[12].codeSize = VecByteSize(shaderCodeIndDispVertex);
   shaderCreateInfos[12].pCode = shaderCodeIndDispVertex.data();
   shaderCreateInfos[12].setLayoutCount = setLayouts.size();
   shaderCreateInfos[12].pSetLayouts = setLayouts.data();
 
   std::vector<uint32_t> shaderCodePlanetDisp;
-  Shader::LoadSPV("Cbt/PlanetDisplacement.comp.spv", shaderCodePlanetDisp);
+  Shader::LoadSPV("PlanetDisplacement.comp.spv", shaderCodePlanetDisp);
   shaderCreateInfos[13].codeSize = VecByteSize(shaderCodePlanetDisp);
   shaderCreateInfos[13].pCode = shaderCodePlanetDisp.data();
   shaderCreateInfos[13].setLayoutCount = setLayouts.size();
