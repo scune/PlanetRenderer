@@ -306,8 +306,7 @@ vec3 Terrain(vec2 p, const uint planeID)
     d += n.yz;
 
     float erosion = 1.f + dot(d, d);
-    an.x += b * n.x / erosion;
-    an.yz += b * n.yz;
+    an += b * n / erosion;
 
     b *= 0.5f;
     //p = m * p * 2.f; // TODO: Maybe fix?

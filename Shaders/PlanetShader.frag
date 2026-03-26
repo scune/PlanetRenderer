@@ -245,53 +245,57 @@ void RotateMsc(inout vec3 worldPos, const vec3 blending, float offset)
 
 vec3 TriplanarProjection(float blendSharpness)
 {
-  //float slope = inNormal.z;
-  //bool rock = (slope < 0.6f);
-  bool rock = false;
+  float slope = dot(normalize(inPos.xyz), inNormal.xyz);
+  slope -= 0.75f;
+  slope *= 4.f;
+  slope = max(0.f, slope);
+  //return vec3(slope);
+  bool rock = (slope < 0.45f);
+  bool textBlend = (!rock && slope < 0.5f);
+  float textBlendAlpha = (textBlend) ? 1.f - min(1.f, (slope - 0.45f) * 20.f) : (rock) ? 1.f : 0.f;
 
-  vec3 blending = abs(inNormal.xyz); // TODO
-  //vec3 blending = abs(inNormal.xyz);
+  vec3 blending = abs(inNormal.xyz);
   blending = pow(blending, vec3(blendSharpness));
 
   float weightSum = blending.x + blending.y + blending.z;
   blending /= weightSum;
 
-  vec3 worldPos = inPos.xyz / ((rock) ? 50.f : 10.f);
+  vec3 worldPos = inPos.xyz / 10.f;
 
   float alpha = PerlinNoise3D(worldPos * 0.2f + 1100.f);
   vec3 offset = Hash3D(uvec3(worldPos / 50.f + 200.f));
   //return vec3(offset);
   //return vec3(alpha);
 
-  vec3 color[3];
-  if (rock)
+  vec3 color[3] = {};
+  if (rock || textBlendAlpha > 0.f)
   {
-    color[0] = texture(texture1, worldPos.yz).rgb * (1.f - alpha);
-    color[1] = texture(texture1, worldPos.xz).rgb * (1.f - alpha);
-    color[2] = texture(texture1, worldPos.xy).rgb * (1.f - alpha);
+    color[0] = texture(texture1, worldPos.yz / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
+    color[1] = texture(texture1, worldPos.xz / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
+    color[2] = texture(texture1, worldPos.xy / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
   }
-  else
+  if (!rock || textBlendAlpha < 1.f)
   {
-    color[0] = texture(texture2, worldPos.yz).rgb * (1.f - alpha);
-    color[1] = texture(texture2, worldPos.xz).rgb * (1.f - alpha);
-    color[2] = texture(texture2, worldPos.xy).rgb * (1.f - alpha);
+    color[0] += texture(texture2, worldPos.yz).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
+    color[1] += texture(texture2, worldPos.xz).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
+    color[2] += texture(texture2, worldPos.xy).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
   }
 
   RotateMsc(worldPos, blending, offset.x);
   worldPos *= 0.6f * (offset.y + 0.5f);
   worldPos += 0.7f * (offset.z + 0.5f);
 
-  if (rock)
+  if (rock || textBlendAlpha > 0.f)
   {
-    color[0] += texture(texture1, worldPos.yz).rgb * alpha;
-    color[1] += texture(texture1, worldPos.xz).rgb * alpha;
-    color[2] += texture(texture1, worldPos.xy).rgb * alpha;
+    color[0] += texture(texture1, worldPos.yz / 5.f).rgb * alpha * textBlendAlpha;
+    color[1] += texture(texture1, worldPos.xz / 5.f).rgb * alpha * textBlendAlpha;
+    color[2] += texture(texture1, worldPos.xy / 5.f).rgb * alpha * textBlendAlpha;
   }
-  else
+  if (!rock || textBlendAlpha < 1.f)
   {
-    color[0] += texture(texture2, worldPos.yz).rgb * alpha;
-    color[1] += texture(texture2, worldPos.xz).rgb * alpha;
-    color[2] += texture(texture2, worldPos.xy).rgb * alpha;
+    color[0] += texture(texture2, worldPos.yz).rgb * alpha * (1.f - textBlendAlpha);
+    color[1] += texture(texture2, worldPos.xz).rgb * alpha * (1.f - textBlendAlpha);
+    color[2] += texture(texture2, worldPos.xy).rgb * alpha * (1.f - textBlendAlpha);
   }
 
   return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
@@ -300,8 +304,8 @@ vec3 TriplanarProjection(float blendSharpness)
 void main()
 {
   // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  //Swapchain = vec4(TriplanarProjection(10.f), 1.f);
+  Swapchain = vec4(TriplanarProjection(10.f), 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  Swapchain = vec4(inNormal.xyz, 1.f);
+  //Swapchain = vec4(inNormal.xyz, 1.f);
 }
