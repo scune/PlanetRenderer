@@ -6,3 +6,4 @@ Makefile
 CMakeCache.txt
 /.cache
 *.spv.d
+TAGS
