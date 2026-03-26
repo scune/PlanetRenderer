@@ -24,17 +24,17 @@ public:
 
   bool FrameCap() noexcept;
 
-  void WaitForFence(VkFence fence);
-  void ResetFence(VkFence fence);
+  [[nodiscard]] VkResult WaitForFence(VkFence fence) noexcept;
+  [[nodiscard]] VkResult ResetFence(VkFence fence) noexcept;
 
-  void ResetAndBeginCmdBufferOneTime();
-  void EndCmdBufferOneTime();
+  [[nodiscard]] bool ResetAndBeginCmdBufferOneTime() noexcept;
+  [[nodiscard]] VkResult EndCmdBufferOneTime() noexcept;
 
   void BeginCmdBufferPreRec(uint32_t idx);
   void EndCmdBufferPreRec(uint32_t idx);
 
   void SubmitWorkPreRec(uint32_t idx);
-  void OneTimeSubmit();
+  [[nodiscard]] bool OneTimeSubmit() noexcept;
 
   VkFormat FindSupportedFormat(InitializerList<VkFormat> candidates,
                                VkImageTiling tiling,

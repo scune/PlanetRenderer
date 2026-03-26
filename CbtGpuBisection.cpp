@@ -489,7 +489,8 @@ void CbtBisection::CreateComputeShaders(
 
 void CbtBisection::InitBuffers(const uint32_t halfedgeCount)
 {
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNThrow(gContext.ResetAndBeginCmdBufferOneTime(),
+           "Failed to reset and begin cmd buffers!");
   auto cmdBuffer = gContext.GetCmdBufferOneTime();
 
   // Initialize cbt bitfield data
@@ -536,8 +537,8 @@ void CbtBisection::InitBuffers(const uint32_t halfedgeCount)
   FillIndirectDispatchBuffer(cmdBuffer);
   CachePointers(cmdBuffer);
 
-  gContext.EndCmdBufferOneTime();
-  gContext.OneTimeSubmit();
+  IfNThrow(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
+  IfNThrow(gContext.OneTimeSubmit(), "Failed to submit cmd buffer!");
 }
 
 void ExtractFrustumPlanes(const glm::mat4& camMatrix, glm::vec4* planes)

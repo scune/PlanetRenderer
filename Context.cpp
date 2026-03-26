@@ -496,33 +496,32 @@ double Context::UpdateDeltaTime() noexcept
   return mDeltaTime;
 }
 
-void Context::WaitForFence(VkFence fence)
+VkResult Context::WaitForFence(VkFence fence) noexcept
 {
-  IfNThrow(vkWaitForFences(mDevice, 1, &fence, VK_TRUE, UINT64_MAX),
-           "Failed to wait for fence!");
+  return vkWaitForFences(mDevice, 1, &fence, VK_TRUE, UINT64_MAX);
 }
 
-void Context::ResetFence(VkFence fence)
+VkResult Context::ResetFence(VkFence fence) noexcept
 {
-  IfNThrow(vkResetFences(mDevice, 1, &fence), "Failed to reset fence!");
+  return vkResetFences(mDevice, 1, &fence);
 }
 
-void Context::ResetAndBeginCmdBufferOneTime()
+bool Context::ResetAndBeginCmdBufferOneTime() noexcept
 {
-  IfNThrow(vkResetCommandBuffer(mCmdBufferOneTime, 0),
+  IfNRetFM(vkResetCommandBuffer(mCmdBufferOneTime, 0),
            "Failed to reset \"one time\" command buffer!");
 
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  IfNThrow(vkBeginCommandBuffer(mCmdBufferOneTime, &beginInfo),
+  IfNRetFM(vkBeginCommandBuffer(mCmdBufferOneTime, &beginInfo),
            "Failed to begin \"one time\" command buffer!");
+  return true;
 }
 
-void Context::EndCmdBufferOneTime()
+VkResult Context::EndCmdBufferOneTime() noexcept
 {
-  IfNThrow(vkEndCommandBuffer(mCmdBufferOneTime),
-           "Failed to end \"one time\" command buffer!");
+  return vkEndCommandBuffer(mCmdBufferOneTime);
 }
 
 void Context::BeginCmdBufferPreRec(uint32_t idx)
@@ -563,18 +562,19 @@ void Context::SubmitWorkPreRec(uint32_t idx)
   mFrameCounter++;
 }
 
-void Context::OneTimeSubmit()
+bool Context::OneTimeSubmit() noexcept
 {
-  ResetFence(mFenceOneTime);
+  IfNRetFM(ResetFence(mFenceOneTime), "Failed to reset fence!");
 
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &mCmdBufferOneTime;
-  IfNThrow(vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, mFenceOneTime),
+  IfNRetFM(vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, mFenceOneTime),
            "Failed to submit work to graphics queue!");
 
-  WaitForFence(mFenceOneTime);
+  IfNRetFM(WaitForFence(mFenceOneTime), "Failed to wait for fence!");
+  return true;
 }
 
 bool Context::FrameCap() noexcept

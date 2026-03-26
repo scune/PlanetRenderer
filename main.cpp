@@ -29,7 +29,8 @@ void Run()
   {
     glfwPollEvents();
 
-    gContext.WaitForFence(gContext.GetFencePreRec());
+    IfNThrow(gContext.WaitForFence(gContext.GetFencePreRec()),
+             "Failed to wait for fence!");
 
     if (gContext.FrameCap())
       continue;
@@ -37,7 +38,8 @@ void Run()
     gContext.UpdateWindowTitle();
 
     gSwapchain.AcquireNextImage();
-    gContext.ResetFence(gContext.GetFencePreRec());
+    IfNThrow(gContext.ResetFence(gContext.GetFencePreRec()),
+             "Failed to reset fence!");
 
     planetRenderer.Update();
 

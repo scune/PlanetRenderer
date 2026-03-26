@@ -78,9 +78,9 @@ bool CreateImage(Image& image, VkImageUsageFlags usage,
     const VkImageLayout newLayout = image.layout;
     image.layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    const VkResult transitionRes = ImageTransitionLayoutAuto(image, newLayout);
+    const bool transitionRes = ImageTransitionLayoutAuto(image, newLayout);
 
-    if (transitionRes != VK_SUCCESS)
+    if (!transitionRes)
     {
       DestroyImage(image);
       IfNRetFM(transitionRes, "Failed to transition image layout!");
@@ -169,7 +169,7 @@ bool ImageCopyToDeviceAuto(Image& image, const void* data,
     return ImageCopyToDeviceWithEXT(image, data) == VK_SUCCESS;
   }
 
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNRetF(gContext.ResetAndBeginCmdBufferOneTime());
 
   const VkImageLayout oldLayout = image.layout;
   ImageInitTransitionLayoutCmd(gContext.GetCmdBufferOneTime(), image,
@@ -181,9 +181,11 @@ bool ImageCopyToDeviceAuto(Image& image, const void* data,
   ImageInitTransitionLayoutCmd(gContext.GetCmdBufferOneTime(), image,
                                oldLayout);
 
-  gContext.EndCmdBufferOneTime();
+  IfNRetFM(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
   if (res)
-    gContext.OneTimeSubmit();
+  {
+    IfNRetF(gContext.OneTimeSubmit());
+  }
 
   DestroyBuffer(stagingBuffer);
   return res;
@@ -231,18 +233,17 @@ void ImageInitTransitionLayoutCmd(VkCommandBuffer cmdBuffer, Image& image,
   image.layout = layout;
 }
 
-VkResult ImageTransitionLayoutAuto(Image& image, VkImageLayout layout) noexcept
+bool ImageTransitionLayoutAuto(Image& image, VkImageLayout layout) noexcept
 {
   if (gContext.HostImageTransferSupp())
   {
-    return ImageTransitionLayoutEXT(image, layout);
+    return ImageTransitionLayoutEXT(image, layout) == VK_SUCCESS;
   }
 
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNRetF(gContext.ResetAndBeginCmdBufferOneTime());
   ImageInitTransitionLayoutCmd(gContext.GetCmdBufferOneTime(), image, layout);
-  gContext.EndCmdBufferOneTime();
-  gContext.OneTimeSubmit();
-  return VK_SUCCESS;
+  IfNRetFM(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
+  return gContext.OneTimeSubmit();
 }
 
 VkResult CreateSampler(Image& image, VkBool32 unnormCoords,
@@ -324,7 +325,7 @@ bool ImageGenMipmaps(Image& image) noexcept
   dependencyInfo.imageMemoryBarrierCount = 2;
   dependencyInfo.pImageMemoryBarriers = imageBarriers;
 
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNRetF(gContext.ResetAndBeginCmdBufferOneTime());
   auto cmdBuffer = gContext.GetCmdBufferOneTime();
 
   for (uint32_t i = 0; i < image.mipLevels - 1; i++)
@@ -373,8 +374,8 @@ bool ImageGenMipmaps(Image& image) noexcept
     vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
   }
 
-  gContext.EndCmdBufferOneTime();
-  gContext.OneTimeSubmit();
+  IfNRetFM(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
+  IfNRetF(gContext.OneTimeSubmit());
 
   return true;
 }

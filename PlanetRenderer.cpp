@@ -102,12 +102,13 @@ void PlanetRenderer::CreateBuffers()
   mDepthImage.aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
   CreateImage(mDepthImage, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNThrow(gContext.ResetAndBeginCmdBufferOneTime(),
+           "Failed to begin and reset cmd buffer!");
   ImageInitTransitionLayoutCmd(
       gContext.GetCmdBufferOneTime(), mDepthImage,
       VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-  gContext.EndCmdBufferOneTime();
-  gContext.OneTimeSubmit();
+  IfNThrow(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
+  IfNThrow(gContext.OneTimeSubmit(), "Failed to submit!");
 }
 
 void PlanetRenderer::CreateDescriptor()

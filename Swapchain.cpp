@@ -22,15 +22,16 @@ void Swapchain::Init()
           : gContext.GetQueueFamilyIndices().graphicsFamily.value();
 
   // Transition to present
-  gContext.ResetAndBeginCmdBufferOneTime();
+  IfNThrow(gContext.ResetAndBeginCmdBufferOneTime(),
+           "Failed to reset and begin cmd buffer!");
   for (uint32_t i = 0; i < mViews.size(); i++)
   {
     TransitionForPresent(gContext.GetCmdBufferOneTime(), i, VK_ACCESS_NONE,
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_IMAGE_LAYOUT_UNDEFINED);
   }
-  gContext.EndCmdBufferOneTime();
-  gContext.OneTimeSubmit();
+  IfNThrow(gContext.EndCmdBufferOneTime(), "Failed to end cmd buffer!");
+  IfNThrow(gContext.OneTimeSubmit(), "Failed to submit!");
 
   // Create semaphores
   VkSemaphoreCreateInfo semaphoreInfo{};

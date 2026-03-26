@@ -37,7 +37,7 @@ VkResult ImageTransitionLayoutEXT(Image& image, VkImageLayout layout) noexcept;
 void ImageInitTransitionLayoutCmd(VkCommandBuffer cmdBuffer, Image& image,
                                   VkImageLayout layout) noexcept;
 
-VkResult ImageTransitionLayoutAuto(Image& image, VkImageLayout layout) noexcept;
+bool ImageTransitionLayoutAuto(Image& image, VkImageLayout layout) noexcept;
 
 VkResult CreateSampler(Image& image, VkBool32 unnormCoords,
                        VkBool32 anisotropy) noexcept;
