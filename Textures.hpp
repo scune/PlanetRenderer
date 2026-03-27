@@ -3,6 +3,7 @@
 #include "Libs.hpp"
 
 #include "Images.hpp"
+#include "ResultCheck.hpp"
 #include <expected>
 
 namespace Textures
@@ -28,4 +29,17 @@ LoadFromFile(const char* path,
              VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
              VkImageUsageFlags additionalUsageFlags =
                  VK_IMAGE_USAGE_SAMPLED_BIT) noexcept;
+
+std::string ErrToStr(Error err) noexcept;
+
+inline void TextIfNThrow(const std::expected<Image, Error>& res)
+{
+  if (!res.has_value())
+  {
+    std::string errStr = "Failed to load texture: ";
+    errStr += ErrToStr(res.error());
+    errStr += "!";
+    IfNThrow(false, errStr.c_str());
+  }
+}
 } // namespace Textures

@@ -64,7 +64,7 @@ Textures::LoadFromMem(const void* data, VkExtent2D extent, uint8_t components,
 
   if (layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
   {
-    if (ImageTransitionLayoutAuto(texture, layout) != VK_SUCCESS)
+    if (!ImageTransitionLayoutAuto(texture, layout))
     {
       DestroyImage(texture);
       return std::unexpected(Error::FAILED_TO_TRANSITION_IMAGE);
@@ -107,4 +107,31 @@ Textures::LoadFromFile(const char* path, VkImageLayout layout,
       LoadFromMem(imageData, extent, components, layout, additionalUsageFlags);
   stbi_image_free(imageData);
   return res;
+}
+
+std::string Textures::ErrToStr(Error err) noexcept
+{
+  switch (err)
+  {
+  case Error::FILE_COULD_NOT_BE_OPENED:
+    return "File could not be opened";
+
+  case Error::NO_SUPPORTED_COMPONENTS:
+    return "No supported components";
+
+  case Error::FAILED_TO_CREATE_IMAGE:
+    return "Failed to create image";
+
+  case Error::FAILED_TO_COPY_TO_IMAGE:
+    return "Failed to copy to image";
+
+  case Error::FAILED_TO_CREATE_SAMPLER:
+    return "Failed to create sampler";
+
+  case Error::FAILED_TO_TRANSITION_IMAGE:
+    return "Failed to transition image";
+
+  default:
+    return "Unknown error";
+  }
 }

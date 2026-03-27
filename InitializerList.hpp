@@ -64,11 +64,6 @@ public:
   {
   }
 
-  inline constexpr InitializerList(const T constArray[]) noexcept
-      : mFirst{constArray}, mLast{constArray + sizeof(constArray)}
-  {
-  }
-
   // Get functions
   inline constexpr uint32_t size() const noexcept
   {

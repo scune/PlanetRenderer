@@ -71,26 +71,31 @@ void PlanetRenderer::CreateBuffers()
   mSceneData.memProperties = memProps;
   IfNThrow(CreateBuffer(mSceneData), "Failed to create scene data buffer!");
 
-  auto txtLoadRes = Textures::LoadFromFile("aerial_rocks_04_diff_1k.jpg");
-  IfNThrow(txtLoadRes.has_value(), "Failed to load texture!");
-  mTexture = txtLoadRes.value();
+  {
+    auto txtLoadRes = Textures::LoadFromFile(
+        "Textures/aerial_rocks_04_4k/aerial_rocks_04_diff_4k.png");
+    Textures::TextIfNThrow(txtLoadRes);
+    mTextures[0] = txtLoadRes.value();
+  }
+  {
+    auto txtLoadRes = Textures::LoadFromFile(
+        "Textures/aerial_rocks_04_4k/aerial_rocks_04_disp_4k.png");
+    Textures::TextIfNThrow(txtLoadRes);
+    mTextures[1] = txtLoadRes.value();
+  }
 
-  auto txt2LoadRes = Textures::LoadFromFile("brown_mud_leaves_01_diff_1k.jpg");
-  IfNThrow(txt2LoadRes.has_value(), "Failed to load texture!");
-  mTexture2 = txt2LoadRes.value();
-  /*mTexture.extent = VkExtent2D{1024, 1024};
-  mTexture.format = VK_FORMAT_R8G8B8A8_UNORM;
-  mTexture.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
-  CreateImage(mTexture, VK_IMAGE_USAGE_SAMPLED_BIT,
-              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  CreateSampler(mTexture, VK_FALSE, VK_TRUE);
-
-  mTexture2.extent = VkExtent2D{1024, 1024};
-  mTexture2.format = VK_FORMAT_R8G8B8A8_UNORM;
-  mTexture2.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
-  CreateImage(mTexture2, VK_IMAGE_USAGE_SAMPLED_BIT,
-              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  CreateSampler(mTexture2, VK_FALSE, VK_TRUE);*/
+  {
+    auto txtLoadRes = Textures::LoadFromFile(
+        "Textures/forrest_ground_01_4k/forrest_ground_01_diff_4k.png");
+    Textures::TextIfNThrow(txtLoadRes);
+    mTextures[2] = txtLoadRes.value();
+  }
+  {
+    auto txtLoadRes = Textures::LoadFromFile(
+        "Textures/forrest_ground_01_4k/forrest_ground_01_disp_4k.png");
+    Textures::TextIfNThrow(txtLoadRes);
+    mTextures[3] = txtLoadRes.value();
+  }
 
   mDepthImage.extent = gSwapchain.GetExtent();
   mDepthImage.format = gContext.FindSupportedFormat(
@@ -113,11 +118,11 @@ void PlanetRenderer::CreateBuffers()
 
 void PlanetRenderer::CreateDescriptor()
 {
-  DescriptorBuilder<3> builder;
+  DescriptorBuilder<2> builder;
   builder.AddUBO(mSceneData,
                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-  builder.AddCombImgSampler(mTexture, VK_SHADER_STAGE_FRAGMENT_BIT);
-  builder.AddCombImgSampler(mTexture2, VK_SHADER_STAGE_FRAGMENT_BIT);
+  builder.AddCombImgSampler({mTextures, (uint32_t)std::size(mTextures)},
+                            VK_SHADER_STAGE_FRAGMENT_BIT);
 
   auto poolRes = builder.BuildDescriptorPool();
   if (poolRes.has_value())
@@ -458,8 +463,8 @@ void PlanetRenderer::Destroy() noexcept
   DestroyBuffer(mVertexBuffer);
   DestroyBuffer(mIndexBuffer);
   DestroyBuffer(mSceneData);
-  DestroyImage(mTexture);
-  DestroyImage(mTexture2);
+  for (uint32_t i = 0; i < (uint32_t)std::size(mTextures); i++)
+    DestroyImage(mTextures[i]);
   DestroyImage(mDepthImage);
 
   if (mDescriptorPool != VK_NULL_HANDLE)

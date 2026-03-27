@@ -80,13 +80,13 @@ void Context::Init(bool force_x11)
   deviceFeatures.GetFeatures2().features.shaderInt16 = VK_TRUE;
   deviceFeatures.GetFeatures2().features.shaderInt64 = VK_TRUE;
 
-  deviceFeatures.Reserve(11);
+  deviceFeatures.Reserve(20);
 
   deviceFeatures.AddFeature(enabledExecutableFeatures);
   deviceFeatures.AddFeature(enabledSynchronization2Features);
   // deviceFeatures.AddFeature(enabledHostImageCopyFeatures);
   deviceFeatures.AddFeature(enabledDynamicRenderingFeatures);
-  // deviceFeatures.AddFeature(enabledMaintenance9Features);
+  deviceFeatures.AddFeature(enabledMaintenance9Features);
   deviceFeatures.AddFeature(enabledMaintenance4Features);
   deviceFeatures.AddFeature(enabledShaderObjectFeatures);
   deviceFeatures.AddFeature(enabledRobustness2Features);

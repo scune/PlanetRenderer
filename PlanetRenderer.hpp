@@ -34,8 +34,7 @@ private:
   Buffer mVertexBuffer{};
   Buffer mIndexBuffer{};
   Buffer mSceneData{};
-  Image mTexture{};
-  Image mTexture2{};
+  Image mTextures[4]{};
   Image mDepthImage{};
 
   void CreateDescriptor();

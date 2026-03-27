@@ -51,7 +51,7 @@ public:
   }
 
   inline constexpr DescriptorBuilder&
-  AddCombImgSampler(const std::vector<Image>& images,
+  AddCombImgSampler(InitializerList<Image> images,
                     VkShaderStageFlags stageFlags,
                     bool bPerSwapchainImage = false) noexcept
   {

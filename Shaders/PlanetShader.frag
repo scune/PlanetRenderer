@@ -3,13 +3,13 @@
 #extension GL_EXT_control_flow_attributes : require
 #extension GL_EXT_null_initializer : require
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : require
 
 layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec4 inNormal;
 layout(location = 2) in flat uint inVertexID;
 
-layout(binding = 1) uniform sampler2D texture1;
-layout(binding = 2) uniform sampler2D texture2;
+layout(binding = 1) uniform sampler2D Textures[];
 
 layout(location = 0) out vec4 Swapchain;
 
@@ -98,105 +98,6 @@ vec3 FastTangent(vec3 v)
                         vec3(0.f, v.z, negY); // cross(v, vec3(1.f, 0.f, 0.f))
 }
 
-vec3 Voronoi(const vec3 pos, const float cellMin, const vec3 tangent, const vec3 bitangent,
-             out vec3 outF1, out vec3 outF2)
-{
-  vec3 secClosestCell = pos - tangent - bitangent;
-  vec3 closestCell = floor(secClosestCell) + Hash3D(uvec3(secClosestCell + cellMin));
-  float minDistToCell = distance(pos, closestCell);
-  float secMinDistToCell = minDistToCell;
-  [[unroll]]
-  for(float x = -1.f; x <= 1.f; x++)
-  [[unroll]]
-  for(float y = -1.f; y <= 1.f; y++)
-  {
-    if (x == -1.f && y == -1.f)
-      continue;
-
-    vec3 cell = pos + tangent * x + bitangent * y;
-    vec3 rndCellPos = floor(cell) + Hash3D(uvec3(cell + cellMin));
-    float dist = distance(pos, rndCellPos);
-    if (dist < minDistToCell)
-    {
-      minDistToCell = dist;
-      secClosestCell = closestCell;
-      closestCell = rndCellPos;
-    }
-    else if (dist < secMinDistToCell)
-    {
-      secClosestCell = rndCellPos;
-      secMinDistToCell = dist;
-    }
-  }
-  outF1 = closestCell;
-  outF2 = secClosestCell;
-  return vec3(Hash3D2D(uvec3(closestCell + cellMin)), minDistToCell);
-  /*return vec3(Hash3D1D(uvec3(closestCell + cellMin)),
-              Hash3D1D(uvec3(secClosestCell + cellMin)),
-              minDistToCell);*/
-}
-
-vec3 TerrainColor()
-{
-  const float slope = inNormal.z;
-  const float scale = (slope > 0.6f) ? 100.f : 30.f;
-
-  vec3 tangent = FastTangent(inNormal.xyz);
-  vec3 bitangent = cross(inNormal.xyz, tangent);
-
-  vec3 gridPos = floor(inPos / 10000.f * scale);
-  vec3 f1;
-  vec3 f2;
-  vec3 voronoiHash = Voronoi(gridPos, scale, tangent, bitangent, f1, f2);
-  return vec3(voronoiHash.x);
-
-  float d = dot(0.5f*(f1+f2),normalize(f2-f1));
-  return vec3(d);
-
-  float hash = voronoiHash.x;
-
-  vec2 uv;
-  uv.x = dot(fract(gridPos), tangent);
-  uv.y = dot(fract(gridPos), bitangent);
-  /*
-  uv = Rotate(uv, hash * 3.1415f * 2.f); // Random rotation
-  uv *= hash * 0.7f + 0.1f; // Random scaling
-  uv += hash * 0.5f; // Random offset
-*/
-  // uv += voronoiHash.xy;
-
-  vec3 color;
-  if (slope > 0.6f)
-    color = texture(texture2, uv).xyz;
-  else
-    color = texture(texture1, uv).xyz;
-
-  return color;
-
-  float blendFactor = (voronoiHash.z > 0.8f) ? 0.5f : 0.f;
-  //return vec3(blendFactor);
-  if (blendFactor > 0.2f)
-  {
-    hash = voronoiHash.y;
-
-    uv.x = dot(fract(gridPos), tangent);
-    uv.y = dot(fract(gridPos), bitangent);
-
-    uv = Rotate(uv, hash * 3.1415f * 2.f); // Random rotation
-    uv *= hash * 0.7f + 0.1f; // Random scaling
-    uv += hash * 0.5f; // Random offset
-
-    vec3 color2;
-    if (slope > 0.6f)
-      color2 = texture(texture2, uv).xyz;
-    else
-      color2 = texture(texture1, uv).xyz;
-
-    color = mix(color, color2, blendFactor);
-  }
-  return color;
-}
-
 // Accepts unsigned x
 float PerlinNoise3D(vec3 x)
 {
@@ -226,8 +127,13 @@ float PerlinNoise3D(vec3 x)
   return k0 + k1*u.x + k2*u.y + k3*u.z + k4*u.x*u.y + k5*u.y*u.z + k6*u.z*u.x + k7*u.x*u.y*u.z;
 }
 
-void RotateMsc(inout vec3 worldPos, const vec3 blending, float offset)
+void RotateMsc(inout vec3 worldPos, float offset)
 {
+  float blendSharpness = 10.f;
+
+  vec3 blending = abs(inNormal.xyz);
+  blending = pow(blending, vec3(blendSharpness));
+
   float rotation = 60.f * (offset + 0.5f);
   if (blending.x > blending.y && blending.x > blending.z)
   {
@@ -243,7 +149,25 @@ void RotateMsc(inout vec3 worldPos, const vec3 blending, float offset)
   }
 }
 
-vec3 TriplanarProjection(float blendSharpness)
+vec3 TriplanarProjection(uint textureID, vec3 worldPos)
+{
+  float blendSharpness = 10.f;
+
+  vec3 blending = abs(inNormal.xyz);
+  blending = pow(blending, vec3(blendSharpness));
+
+  float weightSum = blending.x + blending.y + blending.z;
+  blending /= weightSum;
+
+  vec3 color[3];
+  color[0] = texture(Textures[textureID], worldPos.yz).rgb;
+  color[1] = texture(Textures[textureID], worldPos.xz).rgb;
+  color[2] = texture(Textures[textureID], worldPos.xy).rgb;
+
+  return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
+}
+
+vec3 TerrainColor()
 {
   float slope = dot(normalize(inPos.xyz), inNormal.xyz);
   slope -= 0.75f;
@@ -252,59 +176,58 @@ vec3 TriplanarProjection(float blendSharpness)
   //return vec3(slope);
   bool rock = (slope < 0.45f);
   bool textBlend = (!rock && slope < 0.5f);
-  float textBlendAlpha = (textBlend) ? 1.f - min(1.f, (slope - 0.45f) * 20.f) : (rock) ? 1.f : 0.f;
+  float textBlendAlpha = (rock) ? 1.f : 0.f;
+  if (textBlend)
+  {
+    textBlendAlpha = 1.f - min(1.f, (slope - 0.45f) * 25.f);
+    textBlendAlpha = min(1.f, exp(textBlendAlpha) - 1.f);
+  }
 
-  vec3 blending = abs(inNormal.xyz);
-  blending = pow(blending, vec3(blendSharpness));
-
-  float weightSum = blending.x + blending.y + blending.z;
-  blending /= weightSum;
-
-  vec3 worldPos = inPos.xyz / 10.f;
+  float scaling = 25.f;
+  float scaling2 = 2.f;
+  vec3 worldPos = inPos.xyz / scaling;
 
   float alpha = PerlinNoise3D(worldPos * 0.2f + 1100.f);
   vec3 offset = Hash3D(uvec3(worldPos / 50.f + 200.f));
-  //return vec3(offset);
-  //return vec3(alpha);
 
-  vec3 color[3] = {};
-  if (rock || textBlendAlpha > 0.f)
-  {
-    color[0] = texture(texture1, worldPos.yz / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
-    color[1] = texture(texture1, worldPos.xz / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
-    color[2] = texture(texture1, worldPos.xy / 5.f).rgb * (1.f - alpha) * textBlendAlpha;
-  }
-  if (!rock || textBlendAlpha < 1.f)
-  {
-    color[0] += texture(texture2, worldPos.yz).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
-    color[1] += texture(texture2, worldPos.xz).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
-    color[2] += texture(texture2, worldPos.xy).rgb * (1.f - alpha) * (1.f - textBlendAlpha);
-  }
+  vec3 offsetWorldPos = worldPos;
+  RotateMsc(offsetWorldPos, offset.x);
+  offsetWorldPos *= 0.6f * (offset.y + 0.5f);
+  offsetWorldPos += 0.7f * (offset.z + 0.5f);
 
-  RotateMsc(worldPos, blending, offset.x);
-  worldPos *= 0.6f * (offset.y + 0.5f);
-  worldPos += 0.7f * (offset.z + 0.5f);
+  float rockAlpha = (rock) ? 1.f : 0.f;
+  if (textBlend)
+  {
+    float rockHeight = TriplanarProjection(1, worldPos / scaling2).x * (1.f - alpha);
+    float grassHeight = TriplanarProjection(3, worldPos).x * (1.f - alpha);
 
-  if (rock || textBlendAlpha > 0.f)
-  {
-    color[0] += texture(texture1, worldPos.yz / 5.f).rgb * alpha * textBlendAlpha;
-    color[1] += texture(texture1, worldPos.xz / 5.f).rgb * alpha * textBlendAlpha;
-    color[2] += texture(texture1, worldPos.xy / 5.f).rgb * alpha * textBlendAlpha;
-  }
-  if (!rock || textBlendAlpha < 1.f)
-  {
-    color[0] += texture(texture2, worldPos.yz).rgb * alpha * (1.f - textBlendAlpha);
-    color[1] += texture(texture2, worldPos.xz).rgb * alpha * (1.f - textBlendAlpha);
-    color[2] += texture(texture2, worldPos.xy).rgb * alpha * (1.f - textBlendAlpha);
+    rockHeight += TriplanarProjection(1, offsetWorldPos / scaling2).x * alpha;
+    grassHeight += TriplanarProjection(3, offsetWorldPos).x * alpha;
+
+    rockAlpha = textBlendAlpha;
+    rockAlpha += max(-1.f, min(0.f, rockHeight - grassHeight) * 4.f);
+    //rockAlpha = min(1.f, exp(rockAlpha) - 1.f);
+    //rockAlpha *= textBlendAlpha;
   }
 
-  return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
+  vec3 color = vec3(0.f);
+  if (rockAlpha > 0.f)
+  {
+    color += TriplanarProjection(0, worldPos / scaling2) * (1.f - alpha) * rockAlpha;
+    color += TriplanarProjection(0, offsetWorldPos / scaling2) * alpha * rockAlpha;
+  }
+  if (rockAlpha < 1.f)
+  {
+    color += TriplanarProjection(2, worldPos) * (1.f - alpha) * (1.f - rockAlpha);
+    color += TriplanarProjection(2, offsetWorldPos) * alpha * (1.f - rockAlpha);
+  }
+  return color;
 }
 
 void main()
 {
-  // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  Swapchain = vec4(TriplanarProjection(10.f), 1.f);
+  // Swapchain = vec4(UintToColor(PcgHash(inVertexID)) v+ vec3(0.f, 0.f, 0.5f), 1.f);
+  Swapchain = vec4(TerrainColor(), 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
   //Swapchain = vec4(inNormal.xyz, 1.f);
