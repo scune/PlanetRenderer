@@ -86,13 +86,13 @@ void PlanetRenderer::CreateBuffers()
 
   {
     auto txtLoadRes = Textures::LoadFromFile(
-        "Textures/forrest_ground_01_4k/forrest_ground_01_diff_4k.png");
+        "Textures/aerial_grass_rock_4k/aerial_grass_rock_diff_4k.png");
     Textures::TextIfNThrow(txtLoadRes);
     mTextures[2] = txtLoadRes.value();
   }
   {
     auto txtLoadRes = Textures::LoadFromFile(
-        "Textures/forrest_ground_01_4k/forrest_ground_01_disp_4k.png");
+        "Textures/aerial_grass_rock_4k/aerial_grass_rock_disp_4k.png");
     Textures::TextIfNThrow(txtLoadRes);
     mTextures[3] = txtLoadRes.value();
   }

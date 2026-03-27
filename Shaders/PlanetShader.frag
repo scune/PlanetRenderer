@@ -183,7 +183,7 @@ vec3 TerrainColor()
     textBlendAlpha = min(1.f, exp(textBlendAlpha) - 1.f);
   }
 
-  float scaling = 25.f;
+  float scaling = 100.f;
   float scaling2 = 2.f;
   vec3 worldPos = inPos.xyz / scaling;
 
@@ -204,10 +204,7 @@ vec3 TerrainColor()
     rockHeight += TriplanarProjection(1, offsetWorldPos / scaling2).x * alpha;
     grassHeight += TriplanarProjection(3, offsetWorldPos).x * alpha;
 
-    rockAlpha = textBlendAlpha;
-    rockAlpha += max(-1.f, min(0.f, rockHeight - grassHeight) * 4.f);
-    //rockAlpha = min(1.f, exp(rockAlpha) - 1.f);
-    //rockAlpha *= textBlendAlpha;
+    rockAlpha = (rockHeight > grassHeight) ? textBlendAlpha : 0.f;
   }
 
   vec3 color = vec3(0.f);
