@@ -3,6 +3,7 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_control_flow_attributes : require
 #extension GL_EXT_debug_printf : require
+#extension GL_EXT_nonuniform_qualifier : require
 #ifndef GLSLLANGVALIDATOR
 #extension GL_GOOGLE_include_directive : enable
 #endif // GLSLLANGVALIDATOR
@@ -37,6 +38,8 @@ layout(push_constant, scalar) uniform PushConstant
   uint fbmFrequency;
   float fbmAmplitude;
 };
+
+layout(binding = 11) uniform sampler2D Textures[];
 
 
 
@@ -326,6 +329,32 @@ vec3 AlignToNormal(const vec3 dir, const vec3 normal)
   return dir.x * tangent + dir.y * bitangent + dir.z * normal;
 }
 
+vec3 TriplanarProjection(uint textureID, vec3 worldPos, vec3 normal)
+{
+  float blendSharpness = 10.f;
+
+  vec3 blending = abs(normal);
+  blending = pow(blending, vec3(blendSharpness));
+
+  float weightSum = blending.x + blending.y + blending.z;
+  blending /= weightSum;
+
+  vec3 color[3];
+  color[0] = texture(Textures[textureID], worldPos.yz).rgb;
+  color[1] = texture(Textures[textureID], worldPos.xz).rgb;
+  color[2] = texture(Textures[textureID], worldPos.xy).rgb;
+
+  return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
+}
+
+float TextureDisplacement(vec3 pos, vec3 normal)
+{
+  float scaling = 100.f;
+  vec3 worldPos = pos / scaling;
+
+  return TriplanarProjection(3, worldPos, normal).x;
+}
+
 void main()
 {
   const uint parentCount = (vertexCount + 2) / 3;
@@ -359,6 +388,9 @@ void main()
   vec4 normal = vec4(0.f);
   normal.xyz = normalize(vec3(-ad.yz, 1.f));
   normal.w = ad.x;
+  normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
+
+  v += normalize(v) * 10.f * TextureDisplacement(v, normal.xyz);
 
   if (parent)
   {
@@ -369,8 +401,6 @@ void main()
   else
   {
     outVertices[vIdx].pos.xyz = v;
-
-    normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
     outVertices[vIdx].normal = normal;
   }
 }

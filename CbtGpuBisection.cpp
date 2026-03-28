@@ -3,7 +3,6 @@
 #include "Context.hpp"
 #include "DescriptorBuilder.hpp"
 #include "GetVkFunc.hpp"
-#include "Noise.hpp"
 #include "ResultCheck.hpp"
 #include "Shader.hpp"
 #include "Shaders/Cbt/Generic.glsl.hpp"
@@ -121,7 +120,8 @@ CreateRootBisectors(InitializerList<Cbt::Halfedge> halfedges,
 
 void CbtBisection::Init(uint32_t maxSubdivision,
                         InitializerList<Cbt::Halfedge> halfedges,
-                        const Buffer& vertexBuffer, float scale)
+                        const Buffer& vertexBuffer, float scale,
+                        InitializerList<Image> textures)
 {
   InitConstPushConstantData(maxSubdivision, halfedges, scale);
 
@@ -129,7 +129,7 @@ void CbtBisection::Init(uint32_t maxSubdivision,
       CreateRootBisectors(halfedges, mGenCmdsPushConstants.baseBisectorIndex);
 
   CreateBuffers(halfedges.begin(), bisectors.data(), halfedges.size());
-  CreateDescriptors(vertexBuffer);
+  CreateDescriptors(vertexBuffer, textures);
 
   mSumReducPushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   mSumReducPushConstantRange.offset = 0;
@@ -223,7 +223,8 @@ void CbtBisection::CreateBuffers(const Cbt::Halfedge* halfedges,
   IfNThrow(CreateBuffer(mDebugBuffer), "Failed to create debug buffer!");
 }
 
-void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
+void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer,
+                                     InitializerList<Image> textures)
 {
   {
     DescriptorBuilder<2> builder;
@@ -258,7 +259,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
              "Failed to update descriptor set!");
   }
 
-  DescriptorBuilder<11> builder;
+  DescriptorBuilder<12> builder;
   builder.AddSSBO(mCbt, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mPointerCache, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mBisectors, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -270,6 +271,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer)
   builder.AddUBO(mGlobalUpdate, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mDebugBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mDispatchBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
+  builder.AddCombImgSampler(textures, VK_SHADER_STAGE_COMPUTE_BIT);
 
   auto poolRes = builder.BuildDescriptorPool();
   if (poolRes.has_value())

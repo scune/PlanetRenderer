@@ -25,8 +25,9 @@ void PlanetRenderer::Init()
   CreateGraphicsShader();
   // CreateComputeShader();
 
-  uint32_t maxSubdivision = 12;
-  mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f);
+  uint32_t maxSubdivision = 20;
+  mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
+                     {mTextures, (uint32_t)std::size(mTextures)});
 
   mCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
   mCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));

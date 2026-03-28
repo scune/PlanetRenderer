@@ -4,6 +4,7 @@
 
 #include "Buffers.hpp"
 #include "DescriptorSet.hpp"
+#include "Images.hpp"
 #include "Shaders/Cbt/Bisector.glsl.hpp"
 #include "Shaders/Cbt/Halfedge.glsl.hpp"
 
@@ -13,7 +14,8 @@ public:
   CbtBisection() = default;
 
   void Init(uint32_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
-            const Buffer& vertexBuffer, float scale);
+            const Buffer& vertexBuffer, float scale,
+            InitializerList<Image> textures);
   void Destroy();
 
   void Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
@@ -55,7 +57,8 @@ private:
   Buffer mGlobalUpdate{};
   Buffer mDebugBuffer{};
 
-  void CreateDescriptors(const Buffer& vertexBuffer);
+  void CreateDescriptors(const Buffer& vertexBuffer,
+                         InitializerList<Image> textures);
   VkDescriptorPool mIndirectDispatchPool{VK_NULL_HANDLE};
   VkDescriptorSetLayout mIndirectDispatchSetLayout{VK_NULL_HANDLE};
   DescriptorSet mIndirectDispatchSet{};
