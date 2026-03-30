@@ -217,7 +217,7 @@ void CbtBisection::CreateBuffers(const Cbt::Halfedge* halfedges,
   IfNThrow(CreateBuffer(mGlobalUpdate),
            "Failed to create global update buffer!");
 
-  mDebugBuffer.size = sizeof(glm::ivec2) * 10000;
+  mDebugBuffer.size = sizeof(glm::ivec4) * 10000;
   mDebugBuffer.usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
   mDebugBuffer.memProperties = memProps;
   IfNThrow(CreateBuffer(mDebugBuffer), "Failed to create debug buffer!");
@@ -596,19 +596,20 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
   }
 
   // Debug:
-  /*std::vector<glm::ivec2> debugData(10000);
+  /*std::vector<glm::ivec4> debugData(10000);
   BufferCopyFromHost(mDebugBuffer, debugData.data(), VecByteSize(debugData));
   uint32_t maxIdx = 0;
   for (uint32_t i = 0; i < debugData.size(); i++)
   {
-    if (debugData[i] != glm::ivec2(0))
+    if (debugData[i] != glm::ivec4(0))
     {
-      COUT(i << ": " << debugData[i].x << ", " << debugData[i].y);
+      COUT(i << ": " << debugData[i].x << ", " << debugData[i].y << ", "
+             << debugData[i].z << ", " << debugData[i].w);
       maxIdx = std::max(maxIdx, i + 1);
     }
   }
   if (maxIdx != 0)
-    BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec2));*/
+    BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec4));*/
 }
 
 void CbtBisection::RecordCmds(VkCommandBuffer cmdBuffer)

@@ -4,6 +4,8 @@
 #extension GL_EXT_control_flow_attributes : require
 #extension GL_EXT_debug_printf : require
 #extension GL_EXT_nonuniform_qualifier : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_KHR_shader_subgroup_shuffle_relative : require
 #ifndef GLSLLANGVALIDATOR
 #extension GL_GOOGLE_include_directive : enable
 #endif // GLSLLANGVALIDATOR
@@ -24,7 +26,7 @@ layout(binding = 7, scalar) buffer OutVertices
 
 layout(binding = 9) buffer DebugBuffer
 {
-  ivec2 debugData[];
+  ivec4 debugData[];
 };
 
 layout(push_constant, scalar) uniform PushConstant
@@ -481,11 +483,11 @@ void main()
   if (gl_GlobalInvocationID.x >= vertexCount + parentCount)
     return;
 
-  const bool parent = ((gl_GlobalInvocationID.x & 3) == 0) && (gl_GlobalInvocationID.x > 0);
+  const bool bParent = ((gl_GlobalInvocationID.x & 3) == 0) && (gl_GlobalInvocationID.x > 0);
   const uint vIdx = gl_GlobalInvocationID.x - gl_GlobalInvocationID.x / 4;
 
   vec3 v;
-  if (parent)
+  if (bParent)
   {
     [[unroll]]
     for (uint i = 0; i < 3; i++)
@@ -496,12 +498,14 @@ void main()
     v = outVertices[vIdx].pos.xyz;
   }
 
+  //debugPrintfEXT("gl_SubgroupSize: %u", gl_SubgroupSize);
+
   uint planeID;
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
   ad.x *= fbmAmplitude;
-  // TODO: Parent via subgroup op's
+  // TODO: BParent via subgroup op's
   v = v * ad.x + v * planetScale;
 
   // TODO: x and y may be switched depending on which side of the cube we are on
@@ -512,7 +516,19 @@ void main()
 
   v += normalize(v) * 15.f * TerrainTextDisplace(v, normal.xyz);
 
-  if (parent)
+  uint delta = (bParent) ? 0 : 4 - gl_SubgroupInvocationID % 4;
+  vec3 parent = subgroupShuffleDown(v, delta);
+  if (bParent)
+  {
+    //debugData[gl_GlobalInvocationID.x] = ivec4(v, 0);
+    return;
+  }
+  //debugData[gl_GlobalInvocationID.x] = ivec4(parent, 1);
+
+  outVertices[vIdx].pos = vec4(v, parent[vIdx % 3]);
+  outVertices[vIdx].normal = normal;
+  /*
+  if (bParent)
   {
     [[unroll]]
     for (uint i = 0; i < 3; i++)
@@ -522,5 +538,5 @@ void main()
   {
     outVertices[vIdx].pos.xyz = v;
     outVertices[vIdx].normal = normal;
-  }
+  }*/
 }
