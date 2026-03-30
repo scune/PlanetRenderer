@@ -12,8 +12,15 @@ public:
   inline void SetPos(const glm::vec3& pos) noexcept { mPos = pos; }
   inline void SetRot(const glm::vec3& rot) noexcept
   {
+    assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
+           "Parameter \"rot\" needs to be normalized!");
+
     mRot = rot;
     mLastDir = rot;
+    mDirPitch = std::asin(rot.z);
+    mDirYaw = std::asin(rot.x / std::cos(mDirPitch));
+    mDirPitch = glm::degrees(mDirPitch);
+    mDirYaw = glm::degrees(mDirYaw);
   }
   inline void SetSpeed(float speed) noexcept { mSpeed = speed; }
 

@@ -329,7 +329,54 @@ vec3 AlignToNormal(const vec3 dir, const vec3 normal)
   return dir.x * tangent + dir.y * bitangent + dir.z * normal;
 }
 
-vec3 TriplanarProjection(uint textureID, vec3 worldPos, vec3 normal)
+uvec3 Pcg3d(uvec3 v)
+{
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  return v;
+}
+
+vec3 Hash3D(uvec3 u)
+{
+  return (Pcg3d(u) >> 8u) * 5.9604644775390625e-08;
+}
+
+vec2 Rotate(vec2 v, float angle)
+{
+  float s = sin(angle);
+  float c = cos(angle);
+  return vec2(v.x * c - v.y * s, v.x * s + v.y * c);
+}
+
+void RotateMsc(inout vec3 worldPos, float offset, const vec3 normal)
+{
+  float blendSharpness = 10.f;
+
+  vec3 blending = abs(normal);
+  blending = pow(blending, vec3(blendSharpness));
+
+  float rotation = 60.f * (offset + 0.5f);
+  if (blending.x > blending.y && blending.x > blending.z)
+  {
+    worldPos.yz = Rotate(worldPos.yz, rotation);
+  }
+  else if (blending.y > blending.z)
+  {
+    worldPos.xz = Rotate(worldPos.xz, rotation);
+  }
+  else
+  {
+    worldPos.xy = Rotate(worldPos.xy, rotation);
+  }
+}
+
+vec3 TriplanarProjection(uint textureID, vec3 worldPos, const vec3 normal)
 {
   float blendSharpness = 10.f;
 
@@ -347,12 +394,85 @@ vec3 TriplanarProjection(uint textureID, vec3 worldPos, vec3 normal)
   return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
 }
 
-float TextureDisplacement(vec3 pos, vec3 normal)
+float MinComp(vec2 v)
 {
-  float scaling = 100.f;
-  vec3 worldPos = pos / scaling;
+  return min(v.x, v.y);
+}
 
-  return TriplanarProjection(3, worldPos, normal).x;
+float GridBoundingDist(vec3 gridPos, vec3 normal)
+{
+  vec3 absN = abs(normal);
+  if (absN.x > absN.y && absN.x > absN.z)
+  {
+    gridPos.xy = gridPos.yz;
+  }
+  else if (absN.y > absN.z)
+  {
+    gridPos.xy = gridPos.xz;
+  }
+  gridPos.xy = fract(abs(gridPos.xy));
+  float minDist = MinComp(gridPos.xy);
+  minDist = min(minDist, MinComp(vec2(1.f) - gridPos.xy));
+  return minDist;
+}
+
+vec3 TerrainColorWithOffset(vec3 offsetWorldPos, const vec3 normal, float scaling2, float textBlendAlpha)
+{
+  float rockAlpha = textBlendAlpha;
+
+  vec3 color = vec3(0.f);
+  if (rockAlpha > 0.f)
+  {
+    color += TriplanarProjection(1, offsetWorldPos / scaling2, normal) * rockAlpha;
+  }
+  if (rockAlpha < 1.f)
+  {
+    color += TriplanarProjection(3, offsetWorldPos, normal) * (1.f - rockAlpha);
+  }
+  return color;
+}
+
+float TerrainTextDisplace(const vec3 pos, const vec3 normal)
+{
+  const float slopeRockCutoff = 0.45f;
+  const float slopeRockBlendCutoff = 0.5f;
+
+  float slope = dot(normalize(pos), normal);
+  slope -= 0.75f;
+  slope *= 4.f;
+  slope = max(0.f, slope);
+  bool rock = (slope < slopeRockCutoff);
+  bool textBlend = (!rock && slope < slopeRockBlendCutoff);
+  float textBlendAlpha = (rock) ? 1.f : 0.f;
+  if (textBlend)
+  {
+    textBlendAlpha = 1.f - min(1.f, (slope - slopeRockCutoff)) / (slopeRockBlendCutoff - slopeRockCutoff);
+  }
+
+  vec3 gridPos = pos.xyz / 150.f;
+  vec3 offset = Hash3D(uvec3(gridPos + 200.f));
+  float gridBoundDist = GridBoundingDist(gridPos, normal);
+
+  float scaling = 100.f;
+  float scaling2 = 2.f;
+  vec3 worldPos = pos.xyz / scaling;
+
+  vec3 offsetWorldPos = worldPos;
+  RotateMsc(offsetWorldPos, offset.x, normal);
+  offsetWorldPos *= 0.6f * (offset.y + 0.5f);
+  offsetWorldPos += 0.7f * (offset.z + 0.5f);
+
+  float displace = TerrainColorWithOffset(offsetWorldPos, normal, scaling2, textBlendAlpha).x;
+
+  float defaultCutoff = 0.2f;
+  if (gridBoundDist > defaultCutoff)
+    return displace;
+
+  vec3 offsetWorldPos2 = worldPos * 0.5f + 0.5f; // Offset by 0.5 so the cell edges are in the other cells
+
+  float defaultDisplaceAlpha = 1.f - (gridBoundDist / defaultCutoff);
+  float defaultDisplace = TerrainColorWithOffset(offsetWorldPos2, normal, scaling2, textBlendAlpha).x;
+  return mix(displace, defaultDisplace, defaultDisplaceAlpha);
 }
 
 void main()
@@ -385,12 +505,12 @@ void main()
   v = v * ad.x + v * planetScale;
 
   // TODO: x and y may be switched depending on which side of the cube we are on
-  vec4 normal = vec4(0.f);
+  vec4 normal;
   normal.xyz = normalize(vec3(-ad.yz, 1.f));
-  normal.w = ad.x;
   normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
+  normal.w = ad.x;
 
-  v += normalize(v) * 10.f * TextureDisplacement(v, normal.xyz);
+  v += normalize(v) * 15.f * TerrainTextDisplace(v, normal.xyz);
 
   if (parent)
   {

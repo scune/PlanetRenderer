@@ -133,11 +133,11 @@ inline void Camera::ComputeMouseEvents()
 inline void Camera::UpdateRotation()
 {
   glm::vec3 direction;
-  direction.x = std::sin(glm::radians(mDirYaw)) *
-                std::cos(glm::radians(mDirPitch)); // Pitch // Zur anderen Seite
-  direction.y = std::cos(glm::radians(mDirYaw)) *
-                std::cos(glm::radians(mDirPitch)); // Yaw   // Zur Seite
-  direction.z = std::sin(glm::radians(mDirPitch)); // Roll  // Hoch und Runter
+  direction.x =
+      std::sin(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
+  direction.y =
+      std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
+  direction.z = std::sin(glm::radians(mDirPitch));
   direction = glm::normalize(direction);
 
   mRot += direction - mLastDir;
