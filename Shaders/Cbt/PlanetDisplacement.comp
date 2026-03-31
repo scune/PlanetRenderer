@@ -498,15 +498,19 @@ void main()
     v = outVertices[vIdx].pos.xyz;
   }
 
-  //debugPrintfEXT("gl_SubgroupSize: %u", gl_SubgroupSize);
-
   uint planeID;
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
   ad.x *= fbmAmplitude;
-  // TODO: BParent via subgroup op's
+
   v = v * ad.x + v * planetScale;
+
+  // TODO: Normal from subgroup op's
+  if (gl_SubgroupInvocationID % 4 == 0)
+  {
+    
+  }
 
   // TODO: x and y may be switched depending on which side of the cube we are on
   vec4 normal;
@@ -519,11 +523,7 @@ void main()
   uint delta = (bParent) ? 0 : 4 - gl_SubgroupInvocationID % 4;
   vec3 parent = subgroupShuffleDown(v, delta);
   if (bParent)
-  {
-    //debugData[gl_GlobalInvocationID.x] = ivec4(v, 0);
     return;
-  }
-  //debugData[gl_GlobalInvocationID.x] = ivec4(parent, 1);
 
   outVertices[vIdx].pos = vec4(v, parent[vIdx % 3]);
   outVertices[vIdx].normal = normal;
