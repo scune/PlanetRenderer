@@ -46,6 +46,7 @@ static inline size_t VecCapByteSize(const std::vector<T>& vec) noexcept
 }
 
 #define COUT(str__) std::cout << str__ << "\n"
+#define COUT_VEC2(v__) std::cout << v__[0] << "x " << v__[1] << "y\n"
 #define COUT_VEC3(v__)                                                         \
   std::cout << v__[0] << "x " << v__[1] << "y " << v__[2] << "z\n"
 #define COUT_VEC4(v__)                                                         \

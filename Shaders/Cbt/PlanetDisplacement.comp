@@ -13,7 +13,7 @@
 #include "Generic.glsl.hpp"
 #include "../PlanetVertex.glsl.hpp"
 
-layout(local_size_x = 64) in;
+layout(local_size_x = 32) in;
 
 layout(binding = 7, scalar) buffer OutVertices
 {
@@ -502,15 +502,8 @@ void main()
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
-  ad.x *= fbmAmplitude;
-
-  v = v * ad.x + v * planetScale;
-
-  // TODO: Normal from subgroup op's
-  if (gl_SubgroupInvocationID % 4 == 0)
-  {
-    
-  }
+  //ad.x *= fbmAmplitude;
+  //v = v * ad.x + v * planetScale;
 
   // TODO: x and y may be switched depending on which side of the cube we are on
   vec4 normal;
@@ -518,7 +511,7 @@ void main()
   normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
   normal.w = ad.x;
 
-  v += normalize(v) * 15.f * TerrainTextDisplace(v, normal.xyz);
+  //v += normalize(v) * 15.f * TerrainTextDisplace(v, normal.xyz);
 
   uint delta = (bParent) ? 0 : 4 - gl_SubgroupInvocationID % 4;
   vec3 parent = subgroupShuffleDown(v, delta);
