@@ -123,8 +123,6 @@ void CbtBisection::Init(uint32_t maxSubdivision,
                         const Buffer& vertexBuffer, float scale,
                         InitializerList<Image> textures)
 {
-  HashLinearityTest();
-
   InitConstPushConstantData(maxSubdivision, halfedges, scale);
 
   const auto bisectors =

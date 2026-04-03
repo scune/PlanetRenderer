@@ -6,6 +6,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_KHR_shader_subgroup_shuffle_relative : require
+#extension GL_KHR_shader_subgroup_ballot : require
 #ifndef GLSLLANGVALIDATOR
 #extension GL_GOOGLE_include_directive : enable
 #endif // GLSLLANGVALIDATOR
@@ -13,7 +14,7 @@
 #include "Generic.glsl.hpp"
 #include "../PlanetVertex.glsl.hpp"
 
-layout(local_size_x = 32) in;
+layout(local_size_x = 64) in;
 
 layout(binding = 7, scalar) buffer OutVertices
 {
@@ -91,7 +92,7 @@ uvec2 Pcg2D(uvec2 v)
 
 vec2 Uvec2ToUnitVec2(const uvec2 u)
 {
-  return (u >> 8) * 5.9604644775390625e-08;
+  return (u >> 8u) * 5.9604644775390625e-08f;
 }
 
 vec2 Hash2D(ivec2 i/*, uint planeID */)
@@ -278,14 +279,15 @@ vec3 PerlinNoise2D(const vec2 x, const uvec3 extent, const uint planeID)
     break;
   }
 
-  vec2 f = fract(x);
-  vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
-  vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
+  const vec2 f = fract(x);
 
   float va = dot(ga, f - vec2(0.f, 0.f));
   float vb = dot(gb, f - vec2(1.f, 0.f));
   float vc = dot(gc, f - vec2(0.f, 1.f));
   float vd = dot(gd, f - vec2(1.f, 1.f));
+
+  vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
+  vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
 
   return vec3(va + u.x*(vb-va) + u.y*(vc-va) + u.x*u.y*(va-vb-vc+vd),  // Value
               ga + u.x*(gb-ga) + u.y*(gc-ga) + u.x*u.y*(ga-gb-gc+gd) + // Derivative
@@ -319,16 +321,6 @@ vec3 Terrain(vec2 p, const uint planeID)
     extent <<= 1;
   }
   return an;
-}
-
-vec3 AlignToNormal(const vec3 dir, const vec3 normal)
-{
-  const vec3 up = abs(normal.z) < 0.999f ? vec3(0.f, 0.f, 1.f) : vec3(1.f, 0.f, 0.f);
-
-  const vec3 tangent = normalize(cross(up, normal));
-  const vec3 bitangent = cross(normal, tangent);
-
-  return dir.x * tangent + dir.y * bitangent + dir.z * normal;
 }
 
 uvec3 Pcg3d(uvec3 v)
@@ -477,13 +469,22 @@ float TerrainTextDisplace(const vec3 pos, const vec3 normal)
   return mix(displace, defaultDisplace, defaultDisplaceAlpha);
 }
 
+vec3 SubgroupNormal(vec3 v)
+{
+  uint baseVertex = gl_SubgroupInvocationID & (~3u);
+  vec3 v0 = subgroupShuffle(v, baseVertex);
+  vec3 v1 = subgroupShuffle(v, baseVertex + 1);
+  vec3 v2 = subgroupShuffle(v, baseVertex + 2);
+  return normalize(cross(v1 - v0, v2 - v0));
+}
+
 void main()
 {
   const uint parentCount = (vertexCount + 2) / 3;
   if (gl_GlobalInvocationID.x >= vertexCount + parentCount)
     return;
 
-  const bool bParent = ((gl_GlobalInvocationID.x & 3) == 0) && (gl_GlobalInvocationID.x > 0);
+  const bool bParent = ((gl_GlobalInvocationID.x % 4) == 3);
   const uint vIdx = gl_GlobalInvocationID.x - gl_GlobalInvocationID.x / 4;
 
   vec3 v;
@@ -492,6 +493,7 @@ void main()
     [[unroll]]
     for (uint i = 0; i < 3; i++)
       v[i] = outVertices[vIdx - 3 + i].pos.w;
+    // TODO: Get from subgroup op's
   }
   else
   {
@@ -502,26 +504,23 @@ void main()
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
-  //ad.x *= fbmAmplitude;
-  //v = v * ad.x + v * planetScale;
+  ad.x *= fbmAmplitude;
+  v = v * ad.x + v * planetScale;
+  //v *= planetScale;
 
-  // TODO: x and y may be switched depending on which side of the cube we are on
-  vec4 normal;
-  normal.xyz = normalize(vec3(-ad.yz, 1.f));
-  normal.xyz = AlignToNormal(normal.xyz, outVertices[vIdx].normal.xyz);
-  normal.w = ad.x;
+  vec4 normal = vec4(SubgroupNormal(v), ad.x);
 
   //v += normalize(v) * 15.f * TerrainTextDisplace(v, normal.xyz);
 
-  uint delta = (bParent) ? 0 : 4 - gl_SubgroupInvocationID % 4;
-  vec3 parent = subgroupShuffleDown(v, delta);
+  uint delta = 3u - gl_SubgroupInvocationID % 4;
+  float parent = subgroupShuffleDown(v, delta)[vIdx % 3];
   if (bParent)
     return;
 
-  outVertices[vIdx].pos = vec4(v, parent[vIdx % 3]);
+  outVertices[vIdx].pos = vec4(v, parent);
   outVertices[vIdx].normal = normal;
-  /*
-  if (bParent)
+
+  /*if (bParent)
   {
     [[unroll]]
     for (uint i = 0; i < 3; i++)
