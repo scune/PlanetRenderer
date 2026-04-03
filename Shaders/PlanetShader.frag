@@ -55,13 +55,6 @@ vec2 Rotate(vec2 v, float angle)
   return vec2(v.x * c - v.y * s, v.x * s + v.y * c);
 }
 
-vec3 FastTangent(vec3 v)
-{
-  const float negY = -v.y;
-  return (v.y < 0.9f) ? vec3(negY, 0.f, v.x) : // cross(v, vec3(0.f, 1.f, 0.f))
-                        vec3(0.f, v.z, negY); // cross(v, vec3(1.f, 0.f, 0.f))
-}
-
 void RotateMsc(inout vec3 worldPos, float offset)
 {
   float blendSharpness = 10.f;
@@ -142,8 +135,8 @@ vec3 TerrainColorWithOffset(vec3 offsetWorldPos, float scaling2, float textBlend
 
 vec3 TerrainColor()
 {
-  const float slopeRockCutoff = 0.45f;
-  const float slopeRockBlendCutoff = 0.5f;
+  const float slopeRockCutoff = 0.4f;
+  const float slopeRockBlendCutoff = 0.45f;
 
   float slope = dot(normalize(inPos.xyz), inNormal.xyz);
   slope -= 0.75f;
@@ -161,7 +154,7 @@ vec3 TerrainColor()
   vec3 offset = Hash3D(uvec3(gridPos + 200.f));
   float gridBoundDist = GridBoundingDist(gridPos);
 
-  float scaling = 100.f;
+  float scaling = 15.f;
   float scaling2 = 2.f;
   vec3 worldPos = inPos.xyz / scaling;
 
@@ -186,8 +179,8 @@ vec3 TerrainColor()
 void main()
 {
   //Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  Swapchain = vec4(TerrainColor(), 1.f);
+  //Swapchain = vec4(TerrainColor(), 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  //Swapchain = vec4(inNormal.xyz, 1.f);
+  Swapchain = vec4(inNormal.xyz, 1.f);
 }
