@@ -135,13 +135,10 @@ vec3 TerrainColorWithOffset(vec3 offsetWorldPos, float scaling2, float textBlend
 
 vec3 TerrainColor()
 {
-  const float slopeRockCutoff = 0.4f;
-  const float slopeRockBlendCutoff = 0.45f;
+  const float slopeRockCutoff = 0.8f;
+  const float slopeRockBlendCutoff = 0.85f;
 
   float slope = dot(normalize(inPos.xyz), inNormal.xyz);
-  slope -= 0.75f;
-  slope *= 4.f;
-  slope = max(0.f, slope);
   bool rock = (slope < slopeRockCutoff);
   bool textBlend = (!rock && slope < slopeRockBlendCutoff);
   float textBlendAlpha = (rock) ? 1.f : 0.f;
@@ -154,7 +151,7 @@ vec3 TerrainColor()
   vec3 offset = Hash3D(uvec3(gridPos + 200.f));
   float gridBoundDist = GridBoundingDist(gridPos);
 
-  float scaling = 15.f;
+  float scaling = 10.f;
   float scaling2 = 2.f;
   vec3 worldPos = inPos.xyz / scaling;
 
@@ -179,8 +176,9 @@ vec3 TerrainColor()
 void main()
 {
   //Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  //Swapchain = vec4(TerrainColor(), 1.f);
+  Swapchain = vec4(TerrainColor(), 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
   // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  Swapchain = vec4(inNormal.xyz, 1.f);
+  //Swapchain = vec4(inNormal.xyz, 1.f);
+  //Swapchain = vec4(dot(inNormal.xyz, normalize(inPos.xyz)));
 }

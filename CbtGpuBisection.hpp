@@ -114,6 +114,7 @@ private:
     float planetScale;
     uint32_t fbmFrequency;
     float fbmAmplitude;
+    float amplitudePercent;
   } mGenCmdsPushConstants{};
   VkPushConstantRange mGenCmdsPushConstantRange{};
 

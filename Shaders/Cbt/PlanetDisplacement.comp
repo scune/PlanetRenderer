@@ -40,6 +40,7 @@ layout(push_constant, scalar) uniform PushConstant
   float planetScale;
   uint fbmFrequency;
   float fbmAmplitude;
+  float amplitudePercent;
 };
 
 layout(binding = 11) uniform sampler2D Textures[];
@@ -310,16 +311,20 @@ vec3 Terrain(vec2 p, const uint planeID)
   {
     vec3 n = PerlinNoise2D(p, extent, planeID);
 
+    float erosion = 1.f / (1.f + dot(d, d));
+    an.yz += n.yz * erosion;
+
     d += n.yz;
 
-    float erosion = 1.f + dot(d, d);
-    an += b * n / erosion;
+    float erosion2 = 1.f / (1.f + dot(d, d));
+    an.x += b * n.x * erosion;
 
     b *= 0.5f;
     //p = m * p * 2.f; // TODO: Maybe fix?
     p *= 2.f;
     extent <<= 1;
   }
+  an.yz *= float(fbmFrequency);
   return an;
 }
 
@@ -428,13 +433,10 @@ vec3 TerrainColorWithOffset(vec3 offsetWorldPos, const vec3 normal, float scalin
 
 float TerrainTextDisplace(const vec3 pos, const vec3 normal)
 {
-  const float slopeRockCutoff = 0.3f;
-  const float slopeRockBlendCutoff = 0.4f;
+  const float slopeRockCutoff = 0.6f;
+  const float slopeRockBlendCutoff = 0.65f;
 
   float slope = dot(normalize(pos), normal);
-  slope -= 0.75f;
-  slope *= 4.f;
-  slope = max(0.f, slope);
   bool rock = (slope < slopeRockCutoff);
   bool textBlend = (!rock && slope < slopeRockBlendCutoff);
   float textBlendAlpha = (rock) ? 1.f : 0.f;
@@ -447,7 +449,7 @@ float TerrainTextDisplace(const vec3 pos, const vec3 normal)
   vec3 offset = Hash3D(uvec3(gridPos + 200.f));
   float gridBoundDist = GridBoundingDist(gridPos, normal);
 
-  float scaling = 15.f;
+  float scaling = 10.f;
   float scaling2 = 2.f;
   vec3 worldPos = pos.xyz / scaling;
 
@@ -483,45 +485,43 @@ vec3 ProjectBasis(vec3 dir, vec3 proj)
   return dir - dot(dir, proj) * proj;
 }
 
-vec3 AlignToNormal(vec2 dir, const vec3 pos, uint planeID)
+vec3 AlignToNormal(const vec2 dir, const vec3 normal, const uint planeID)
 {
-  const vec3 normal = normalize(pos);
-
   vec3 tangent;
   vec3 bitangent;
   if (planeID == 0)
   {
-    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal) * normal.x;
-    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal) * normal.x;
+    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal);
   }
   else if (planeID == 1)
   {
-    tangent = ProjectBasis(vec3(-1.f, 0.f, 0.f), normal) * normal.y;
-    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal) * normal.y;
+    tangent = ProjectBasis(vec3(-1.f, 0.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal);
   }
   else if (planeID == 2)
   {
-    tangent = ProjectBasis(vec3(0.f, -1.f, 0.f), normal) * normal.x * -1.f;
-    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal) * normal.x * -1.f;
+    tangent = ProjectBasis(vec3(0.f, -1.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal);
   }
   else if (planeID == 3)
   {
-    tangent = ProjectBasis(vec3(1.f, 0.f, 0.f), normal) * normal.y * -1.f;
-    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal) * normal.y * -1.f;
+    tangent = ProjectBasis(vec3(1.f, 0.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(0.f, 0.f, 1.f), normal);
   }
   else if (planeID == 4)
   {
-    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal) * normal.z;
-    bitangent = ProjectBasis(vec3(-1.f, 0.f, 0.f), normal) * normal.z;
+    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(-1.f, 0.f, 0.f), normal);
   }
   else if (planeID == 5)
   {
-    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal) * normal.z * -1.f;
-    bitangent = ProjectBasis(vec3(1.f, 0.f, 0.f), normal) * normal.z * -1.f;
+    tangent = ProjectBasis(vec3(0.f, 1.f, 0.f), normal);
+    bitangent = ProjectBasis(vec3(1.f, 0.f, 0.f), normal);
   }
 
   vec3 gradient = dir.x * tangent + dir.y * bitangent;
-  return normalize(pos - gradient);
+  return normalize(normal - gradient);
 }
 
 void main()
@@ -550,11 +550,14 @@ void main()
   vec2 uv = CubeProj(v, planeID);
 
   vec3 ad = Terrain(uv, planeID);
-  ad *= fbmAmplitude;
-  vec4 normal = vec4(v, ad.x);
-  v = v * ad.x + v * planetScale;
+  ad.x *= fbmAmplitude;
 
-  normal.xyz = AlignToNormal(ad.yz, normal.xyz * abs(ad.x), planeID);
+  vec4 normal;
+  normal.xyz = AlignToNormal(ad.yz * amplitudePercent, v, planeID);
+  //normal.xyz = SubgroupNormal(v);
+  normal.w = ad.x;
+
+  v *= ad.x + planetScale;
 
   //v += normalize(v) * 3.5f * TerrainTextDisplace(v, normal.xyz);
 
