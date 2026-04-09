@@ -25,7 +25,7 @@ void PlanetRenderer::Init()
   CreateGraphicsShader();
   // CreateComputeShader();
 
-  uint32_t maxSubdivision = 20;
+  uint32_t maxSubdivision = 10;
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
