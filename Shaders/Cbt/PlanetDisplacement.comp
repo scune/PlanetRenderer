@@ -50,7 +50,7 @@ layout(binding = 11) uniform sampler2D Textures[];
 // Accepts a signed normalized pos
 // Returns UV in interval [0.f, 1.f]
 // and ID of the plane from the cube
-vec2 CubeProj(const vec3 pos, out uint planeID, out uint offset3, out vec3 cubeWorldPos)
+vec2 CubeProj(const vec3 pos, out uint planeID, out uint offset3, out vec3 cubePos)
 {
   const vec3 absP = abs(pos);
   vec3 uv = pos;
@@ -59,34 +59,35 @@ vec2 CubeProj(const vec3 pos, out uint planeID, out uint offset3, out vec3 cubeW
   {
     bool positive = (uv.x > 0.f);
     planeID = (positive) ? 0 : 2;
-    offset3 = 418;
+    offset3 = 0x1A2;
     //uv.y *= (positive) ? 1.f : -1.f;
     //uv.xy = uv.yz / absP.x;
     uv.xy = uv.yz / absP.x;
-    cubeWorldPos = pos / absP.x;
+    cubePos = pos / absP.x;
   }
   else if (absP.y > absP.z) // y
   {
     bool positive = (uv.y > 0.f);
     planeID = (positive) ? 1 : 3;
-    offset3 = 353;
+    offset3 = 0x161;
     //uv.x *= (positive) ? -1.f : 1.f;
     //uv.xy = uv.xz / absP.y;
     uv.xy = uv.xz / absP.y;
-    cubeWorldPos = pos / absP.y;
+    cubePos = pos / absP.y;
   }
   else // z
   {
     bool positive = (uv.z > 0.f);
     planeID = (positive) ? 4 : 5;
-    offset3 = 209;
+    offset3 = 0xD1;
     //uv.x *= (positive) ? -1.f : 1.f;
     //uv.xy = uv.yx / absP.z;
     uv.xy /= absP.z;
-    cubeWorldPos = pos / absP.z;
+    cubePos = pos / absP.z;
   }
-  cubeWorldPos = cubeWorldPos * 0.5f + 0.5f;
-  return uv.xy * 0.5f + 0.5f;
+  cubePos = clamp(cubePos * 0.5f + 0.5f, 0.f, 1.f);
+  uv.xy = clamp(uv.xy * 0.5f + 0.5f, 0.f, 1.f);
+  return uv.xy;
 }
 
 uvec2 Pcg2D(uvec2 v)
@@ -101,28 +102,10 @@ uvec2 Pcg2D(uvec2 v)
   return v;
 }
 
-vec2 Uvec2ToUnitVec2(const uvec2 u)
+vec2 Hash2D(uvec2 u)
 {
-  return (u >> 8u) * 5.9604644775390625e-08f;
-}
-
-vec2 Hash2D(uvec2 u/*, uint planeID */)
-{/*
-  if (u.y == 0)
-  {
-    if (planeID == 1)
-    {
-      debugData[u.x] = ivec2(u);
-      return vec2(u.x) / 10.f;
-    }
-    else if (planeID == 5)
-    {
-      debugData[u.x + 10] = ivec2(u);
-      return vec2(u.x) / 10.f;
-    }
-  }*/
   u = Pcg2D(u);
-  return Uvec2ToUnitVec2(u) * 2.f - 1.f;
+  return (u >> 8u) * 5.9604644775390625e-08f * 2.f - 1.f;
 }
 
 uvec3 Pcg3d(uvec3 v)
@@ -140,7 +123,25 @@ uvec3 Pcg3d(uvec3 v)
 
 vec3 Hash3D(uvec3 i, const uvec3 extent)
 {
-  return (Pcg3d(i) >> 8u) * 5.9604644775390625e-08 * 2.f - 1.f;
+  u = Pcg3d(u);
+  return (u >> 8u) * 5.9604644775390625e-08f * 2.f - 1.f;
+}
+
+vec2 HashProjectToFace(vec3 hash, uint planeID)
+{
+  switch (planeID)
+  {
+  case 0:
+  case 2:
+    return hash.yz;
+  case 1:
+  case 3:
+    return hash.xz;
+  case 4:
+  case 5:
+    return hash.xy;
+  }
+>>>>>>> 073aa3c044d2e4323d03daa7797d5b3007c065af
 }
 
 uvec3 Extract(const uint extent3, const int offset)
@@ -155,87 +156,95 @@ uvec3 Extract2(const uint extent3) { return Extract(extent3, 3); }
 uvec3 Extract3(const uint extent3) { return Extract(extent3, 6); }
 
 // Accepts an unsigned vec2
-vec3 PerlinNoise2D(const vec2 x, const uvec3 cubePos, const uvec3 extent, const uint extent3, const uint planeID)
+vec3 PerlinNoise(const uvec2 uv, const vec2 uvFract, const uvec3 cubePos, const vec3 cubeFract, const uvec3 extent, const uint extent3, const uint planeID)
 {
-  uvec2 xu = uvec2(x);
+  vec2 ga = Hash2D(uv + uvec2(0, 0));
+  vec2 gb = Hash2D(uv + uvec2(1, 0));
+  vec2 gc = Hash2D(uv + uvec2(0, 1));
+  vec2 gd = Hash2D(uv + uvec2(1, 1));
 
-  vec2 ga = Hash2D(xu + uvec2(0, 0));
-  vec2 gb = Hash2D(xu + uvec2(1, 0));
-  vec2 gc = Hash2D(xu + uvec2(0, 1));
-  vec2 gd = Hash2D(xu + uvec2(1, 1));
+  const float jacobian = 2.f / 3.f;
 
-  vec2 f = fract(x);
-
-  float va = dot(ga, f - vec2(0.f, 0.f));
-  float vb = dot(gb, f - vec2(1.f, 0.f));
-  float vc = dot(gc, f - vec2(0.f, 1.f));
-  float vd = dot(gd, f - vec2(1.f, 1.f));
-
-  if (xu.x == extent.x) // Min x
+  if (uv.x == extent.x) // Min x
   {
-    vec3 ga3 = Hash3D(cubePos, extent);
-    vec3 gc3 = Hash3D(cubePos + Extract2(extent3), extent);
-    ga3.xy *= ga3.z;
-    gc3.xy *= gc3.z;
+    vec3 ga3 = Hash3D(cubePos);
+    vec3 gc3 = Hash3D(cubePos + Extract2(extent3));
 
-    va = dot(ga3.xy, f - vec2(0.f, 0.f));
-    vc = dot(gc3.xy, f - vec2(0.f, 1.f));
+    ga = HashProjectToFace(ga3, planeID);
+    gc = HashProjectToFace(gc3, planeID);
+
+    //va = dot(ga3, cubeFract);
+    //vc = dot(gc3, cubeFract - vec3(Extract2(extent3)));
+
+    //va = Hash3D(cubePos, normal);
+    //vc = Hash3D(cubePos + Extract2(extent3), normal);
+    //va *= jacobian;
+    //vc *= jacobian;
   }
-  else if (xu.x == extent.y - 1) // Max x
+  else if (uv.x == extent.y - 1) // Max x
   {
-    vec3 gb3 = Hash3D(cubePos + Extract1(extent3), extent);
-    //vec3 gb3 = vec3(cubePos.xx + 1, 1.f);
-    //vec3 gb3 = vec3(0.6f, -0.2f, 1.f);
-    vec3 gd3 = Hash3D(cubePos + Extract3(extent3), extent);
-    //vec3 gd3 = vec3(cubePos.zz, 1.f);
-    //vec3 gd3 = vec3(0.4f, 0.6f, 1.f);
-    //vec3 gd3 = vec3(1.f);
-    //gb3.xy *= gb3.z;
-    //gd3.xy *= gd3.z;
+    vec3 gb3 = Hash3D(cubePos + Extract1(extent3));
+    vec3 gd3 = Hash3D(cubePos + Extract3(extent3));
 
-    vb = dot(gb3.xy, f - vec2(1.f, 0.f));
-    vd = dot(gd3.xy, f - vec2(1.f, 1.f));
+    gb = HashProjectToFace(gb3, planeID);
+    gd = HashProjectToFace(gd3, planeID);
+
+    //vb = dot(gb3, cubeFract - vec3(Extract1(extent3)));
+    //vd = dot(gd3, cubeFract - vec3(Extract3(extent3)));
+
+    //vb = Hash3D(cubePos + Extract1(extent3), normal);
+    //vd = Hash3D(cubePos + Extract3(extent3), normal);
+    //vb *= jacobian;
+    //vd *= jacobian;
   }
-  if (xu.y == 0) // Min y
+  if (uv.y == 0) // Min y
   {
-    vec3 ga3 = Hash3D(cubePos, extent);
-    vec3 gb3 = Hash3D(cubePos + Extract1(extent3), extent);
-    ga3.xy *= ga3.z;
-    gb3.xy *= gb3.z;
+    vec3 ga3 = Hash3D(cubePos);
+    vec3 gb3 = Hash3D(cubePos + Extract1(extent3));
 
-    va = dot(ga3.xy, f - vec2(0.f, 0.f));
-    vb = dot(gb3.xy, f - vec2(1.f, 0.f));
+    ga = HashProjectToFace(ga3, planeID);
+    gb = HashProjectToFace(gb3, planeID);
+
+    //va = dot(ga3, cubeFract);
+    //vb = dot(gb3, cubeFract - vec3(Extract1(extent3)));
+
+    //va = Hash3D(cubePos, normal);
+    //vb = Hash3D(cubePos + Extract1(extent3), normal);
+    //va *= jacobian;
+    //vb *= jacobian;
   }
-  else if (xu.y == extent.z - 1) // Max y
+  else if (uv.y == extent.z - 1) // Max y
   {
-    vec3 gc3 = Hash3D(cubePos + Extract2(extent3), extent);
-    //vec3 gc3 = vec3(cubePos.xx, 1.f);
-    //vec3 gc3 = vec3(0.6f, -0.2f, 1.f);
-    vec3 gd3 = Hash3D(cubePos + Extract3(extent3), extent);
-    //vec3 gd3 = vec3(cubePos.zz + 1, 1.f);
-    //vec3 gd3 = vec3(0.4f, 0.6f, 1.f);
-    //gc3.xy *= gc3.z;
-    //gd3.xy *= gd3.z;
+    vec3 gc3 = Hash3D(cubePos + Extract2(extent3));
+    vec3 gd3 = Hash3D(cubePos + Extract3(extent3));
 
-    if (planeID == 0) // TODO: Fix without this/Understand why
-    {
-      gc3.xy = gc3.yx;
-      gd3.xy = gd3.yx;
-    }
+    gc = HashProjectToFace(gc3, planeID);
+    gd = HashProjectToFace(gd3, planeID);
 
-    vc = dot(gc3.xy, f - vec2(0.f, 1.f));
-    vd = dot(gd3.xy, f - vec2(1.f, 1.f));
+    //vc = dot(gc3, cubeFract - vec3(Extract2(extent3)));
+    //vd = dot(gd3, cubeFract - vec3(Extract3(extent3)));
+
+    //vc = Hash3D(cubePos + Extract2(extent3), normal);
+    //vd = Hash3D(cubePos + Extract3(extent3), normal);
+    //vc *= jacobian;
+    //vd *= jacobian;
   }
 
-  vec2 u = f * f * f * (f * (f * 6.f - 15.f) + 10.f);
-  vec2 du = 30.f * f * f * (f * (f - 2.f) + 1.f);
+  float va = dot(ga, uvFract - vec2(0.f, 0.f));
+  float vb = dot(gb, uvFract - vec2(1.f, 0.f));
+  float vc = dot(gc, uvFract - vec2(0.f, 1.f));
+  float vd = dot(gd, uvFract - vec2(1.f, 1.f));
+
+  vec2 u = uvFract * uvFract * uvFract * (uvFract * (uvFract * 6.f - 15.f) + 10.f);
+  vec2 du = 30.f * uvFract * uvFract * (uvFract * (uvFract - 2.f) + 1.f);
+>>>>>>> 073aa3c044d2e4323d03daa7797d5b3007c065af
 
   return vec3(va + u.x*(vb-va) + u.y*(vc-va) + u.x*u.y*(va-vb-vc+vd),  // Value
               ga + u.x*(gb-ga) + u.y*(gc-ga) + u.x*u.y*(ga-gb-gc+gd) + // Derivative
               du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3)
+vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, const vec3 normal)
 {
   const mat2 m = mat2(0.8f, -0.6f,
                       0.6f,  0.8f);
@@ -244,14 +253,18 @@ vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3)
   p *= float(fbmFrequency); // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
   uvec3 extent = uvec3(planeID * fbmFrequency, (planeID + 1) * fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
   //uvec3 extent = uvec3(0, fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
+  vec2 uvFract = fract(p);
+  uvec2 uv = uvec2(p);
 
   vec3 an = vec3(0.f); // .x = height, .yz = derivate
   float b = 1.f;
   vec2 d = vec2(0.f);
-  vec3 cubePos = vec3(cubePosF * fbmFrequency);
-  for (int i = 0; i < 10; i++)
+  cubePosF *= fbmFrequency;
+  vec3 cubeFract = fract(cubePosF);
+  uvec3 cubePos = uvec3(cubePosF);
+  for (uint i = 0; i < 1; i++)
   {
-    vec3 n = PerlinNoise2D(p, uvec3(cubePos), extent, extent3, planeID);
+    vec3 n = PerlinNoise(uv, uvFract, cubePos, cubeFract, extent, extent3, planeID);
 
     //float erosion = 1.f + dot(d, d);
     float erosion = 1.f;
@@ -265,9 +278,16 @@ vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3)
 
     b *= 0.5f;
     //p = m * p * 2.f; // TODO: Maybe fix?
-    p *= 2.f;
     extent <<= 1;
-    cubePos *= 2.f;
+    uv <<= 1;
+    uvFract *= 2.f;
+    uv += uvec2(uvFract);
+    uvFract = fract(uvFract);
+
+    cubePos <<= 1;
+    cubeFract *= 2.f;
+    cubePos += uvec3(cubeFract);
+    cubeFract = fract(cubeFract);
   }
   an.yz *= float(fbmFrequency);
   return an;
@@ -358,9 +378,9 @@ vec3 TerrainColorWithOffset(vec3 offsetWorldPos, const vec3 normal, float scalin
   return color;
 }
 
-vec3 Hash3D(uvec3 u)
+vec3 Hash3DUnsigned(uvec3 u)
 {
-  return (Pcg3d(u) >> 8u) * 5.9604644775390625e-08;
+  return (Pcg3d(u) >> 8u) * 5.9604644775390625e-08f;
 }
 
 float TerrainTextDisplace(const vec3 pos, const vec3 normal)
@@ -378,7 +398,7 @@ float TerrainTextDisplace(const vec3 pos, const vec3 normal)
   }
 
   vec3 gridPos = pos.xyz / 150.f;
-  vec3 offset = Hash3D(uvec3(gridPos + 200.f));
+  vec3 offset = Hash3DUnsigned(uvec3(gridPos + 200.f));
   float gridBoundDist = GridBoundingDist(gridPos, normal);
 
   float scaling = 10.f;
@@ -418,38 +438,25 @@ vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
 }
 
 vec3 AlignToNormal(const vec2 dir, const vec3 normal, const uint planeID)
-{
+{/*
+  vec3 tangent = normalize(cross(normal, vec3(0.f, 0.f, 1.f)));
+  vec3 bitangent = cross(normal, tangent);*/
   vec3 tangent;
   vec3 bitangent;
-  if (planeID == 0)
+  if (planeID == 0 || planeID == 2)
   {
     tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
     bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
   }
-  else if (planeID == 1)
-  {
-    tangent = ProjectOrthogonal(vec3(-1.f, 0.f, 0.f), normal);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
-  }
-  else if (planeID == 2)
-  {
-    tangent = ProjectOrthogonal(vec3(0.f, -1.f, 0.f), normal);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
-  }
-  else if (planeID == 3)
+  else if (planeID == 1 || planeID == 3)
   {
     tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal);
     bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
   }
-  else if (planeID == 4)
+  else if (planeID == 4 || planeID == 5)
   {
-    tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
-    bitangent = ProjectOrthogonal(vec3(-1.f, 0.f, 0.f), normal);
-  }
-  else if (planeID == 5)
-  {
-    tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
-    bitangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal);
+    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal);
+    bitangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
   }
 
   vec3 gradient = dir.x * tangent + dir.y * bitangent;
@@ -478,24 +485,12 @@ void main()
     v = outVertices[vIdx].pos.xyz;
   }
 
-  /*const vec3 absV = abs(v);
-  if (absV.x > absV.y && absV.x > absV.z)
-    v /= absV.x;
-  else if (absV.y > absV.z)
-    v /= absV.y;
-  else
-    v /= v.z;
-
-  v *= 10000.f;
-
-  vec4 normal = vec4(v, 1.f);*/
-
   uint planeID;
   uint extent3;
   vec3 cubeWorldPos;
   vec2 uv = CubeProj(v, planeID, extent3, cubeWorldPos);
 
-  vec3 ad = Terrain(uv, cubeWorldPos, planeID, extent3);
+  vec3 ad = Terrain(uv, cubeWorldPos, planeID, extent3, v);
   ad.x *= fbmAmplitude;
 
   vec4 normal;
