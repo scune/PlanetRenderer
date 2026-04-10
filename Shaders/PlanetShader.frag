@@ -173,12 +173,32 @@ vec3 TerrainColor()
   return mix(color, defaultColor, defaultColorAlpha);
 }
 
+vec2 CubeProj(const vec3 pos)
+{
+  const vec3 absP = abs(pos);
+  vec3 uv = pos;
+
+  if (absP.x > absP.y && absP.x > absP.z) // x
+    {
+      uv.xy = uv.yz / absP.x;
+    }
+  else if (absP.y > absP.z) // y
+    {
+      uv.xy = uv.xz / absP.y;
+    }
+  else // z
+    {
+      uv.xy /= absP.z;
+    }
+  uv.xy = clamp(uv.xy * 0.5f + 0.5f, 0.f, 1.f);
+  return uv.xy;
+}
+
 void main()
 {
   //Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
   //Swapchain = vec4(TerrainColor(), 1.f);
-  // Swapchain = vec4(CubeProj(normalize(inPos.xyz)) * inNormal.xy + 0.3f, 0.f, 1.f);
-  // Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  Swapchain = vec4(inNormal.xyz, 1.f);
+  //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
+  Swapchain = vec4(inNormal.xyz * 0.5f + 0.5f, 1.f);
   //Swapchain = vec4(dot(inNormal.xyz, normalize(inPos.xyz)));
 }
