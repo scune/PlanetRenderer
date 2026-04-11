@@ -207,7 +207,7 @@ vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
   vec2 uvFract = fract(p);
   uvec2 uv = uvec2(p);
 
-  vec3 an = vec3(0.f); // .x = height, .yz = derivate
+  vec3 an = vec3(0.f);
   float b = 1.f;
   vec2 d = vec2(0.f);
 
@@ -218,14 +218,13 @@ vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
   {
     vec3 n = PerlinNoise(uv, uvFract, cubePos, cubeFract, extent, extent3, planeID);
 
-    //vec2 N = AlignGradient(n.yz * amplitudePercent, normal, planeID);
-    vec2 N = n.yz * amplitudePercent;
+    n.yz *= amplitudePercent;
 
     float erosion = 1.f + dot(d, d);
     //float erosion = 1.f;
-    an.yz += N / erosion;
+    an.yz += n.yz / erosion;
 
-    d += N;
+    d += n.yz;
 
     float erosion2 = 1.f + dot(d, d);
     //float erosion2 = 1.f;
