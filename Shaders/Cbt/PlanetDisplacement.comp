@@ -247,6 +247,44 @@ vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
   return an;
 }
 
+vec3 SubgroupNormal(vec3 v)
+{
+  uint baseVertex = gl_SubgroupInvocationID & (~3u);
+  vec3 v0 = subgroupShuffle(v, baseVertex);
+  vec3 v1 = subgroupShuffle(v, baseVertex + 1);
+  vec3 v2 = subgroupShuffle(v, baseVertex + 2);
+  return normalize(cross(v1 - v0, v2 - v0));
+}
+
+vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
+{
+  return dir - dot(dir, proj) * proj;
+}
+
+vec3 AlignToNormal(const vec2 dir, const vec3 normal, const uint planeID)
+{
+  vec3 tangent;
+  vec3 bitangent;
+  if (planeID == 0 || planeID == 2)
+  {
+    tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
+    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
+  }
+  else if (planeID == 1 || planeID == 3)
+  {
+    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal);
+    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal);
+  }
+  else
+  {
+    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal);
+    bitangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal);
+  }
+
+  vec3 gradient = dir.x * tangent + dir.y * bitangent;
+  return normalize(normal - gradient);
+}
+
 vec2 Rotate(vec2 v, float angle)
 {
   float s = sin(angle);
@@ -276,7 +314,7 @@ void RotateMsc(inout vec3 worldPos, float offset, const vec3 normal)
   }
 }
 
-vec3 TriplanarProjection(uint textureID, vec3 worldPos, const vec3 normal)
+float TriplanarProjection(uint textureID, vec3 worldPos, const vec3 normal)
 {
   float blendSharpness = 10.f;
 
@@ -286,12 +324,12 @@ vec3 TriplanarProjection(uint textureID, vec3 worldPos, const vec3 normal)
   float weightSum = blending.x + blending.y + blending.z;
   blending /= weightSum;
 
-  vec3 color[3];
-  color[0] = texture(Textures[textureID], worldPos.yz).rgb;
-  color[1] = texture(Textures[textureID], worldPos.xz).rgb;
-  color[2] = texture(Textures[textureID], worldPos.xy).rgb;
+  vec3 displacement;
+  displacement[0] = texture(Textures[textureID], worldPos.yz).r;
+  displacement[1] = texture(Textures[textureID], worldPos.xz).r;
+  displacement[2] = texture(Textures[textureID], worldPos.xy).r;
 
-  return color[0] * blending.x + color[1] * blending.y + color[2] * blending.z;
+  return dot(displacement, blending);
 }
 
 float MinComp(vec2 v)
@@ -316,20 +354,20 @@ float GridBoundingDist(vec3 gridPos, vec3 normal)
   return minDist;
 }
 
-vec3 TerrainColorWithOffset(vec3 offsetWorldPos, const vec3 normal, float scaling2, float textBlendAlpha)
+float TerrainColorWithOffset(vec3 offsetWorldPos, const vec3 normal, float scaling2, float textBlendAlpha)
 {
   float rockAlpha = textBlendAlpha;
 
-  vec3 color = vec3(0.f);
+  float displacement = 0.f;
   if (rockAlpha > 0.f)
   {
-    color += TriplanarProjection(1, offsetWorldPos / scaling2, normal) * rockAlpha;
+    displacement += TriplanarProjection(1, offsetWorldPos / scaling2, normal) * rockAlpha;
   }
   if (rockAlpha < 1.f)
   {
-    color += TriplanarProjection(3, offsetWorldPos, normal) * (1.f - rockAlpha);
+    displacement += TriplanarProjection(3, offsetWorldPos, normal) * (1.f - rockAlpha);
   }
-  return color;
+  return displacement;
 }
 
 vec3 Hash3DUnsigned(uvec3 u)
@@ -337,12 +375,12 @@ vec3 Hash3DUnsigned(uvec3 u)
   return (Pcg3D(u) >> 8u) * 5.9604644775390625e-08f;
 }
 
-float TerrainTextDisplace(const vec3 pos, const vec3 normal)
+float TerrainColor(vec3 pos, vec3 normal)
 {
-  const float slopeRockCutoff = 0.6f;
-  const float slopeRockBlendCutoff = 0.65f;
+  const float slopeRockCutoff = 0.5f;
+  const float slopeRockBlendCutoff = 0.55f;
 
-  float slope = dot(normalize(pos), normal);
+  float slope = dot(normalize(pos.xyz), normal.xyz);
   bool rock = (slope < slopeRockCutoff);
   bool textBlend = (!rock && slope < slopeRockBlendCutoff);
   float textBlendAlpha = (rock) ? 1.f : 0.f;
@@ -352,7 +390,7 @@ float TerrainTextDisplace(const vec3 pos, const vec3 normal)
   }
 
   vec3 gridPos = pos.xyz / 150.f;
-  vec3 offset = Hash3DUnsigned(uvec3(gridPos + 200.f));
+  vec3 offset = Hash3D(uvec3(gridPos + 200.f));
   float gridBoundDist = GridBoundingDist(gridPos, normal);
 
   float scaling = 10.f;
@@ -364,55 +402,17 @@ float TerrainTextDisplace(const vec3 pos, const vec3 normal)
   offsetWorldPos *= 0.6f * (offset.y + 0.5f);
   offsetWorldPos += 0.7f * (offset.z + 0.5f);
 
-  float displace = TerrainColorWithOffset(offsetWorldPos, normal, scaling2, textBlendAlpha).x;
+  float displacement = TerrainColorWithOffset(offsetWorldPos, normal, scaling2, textBlendAlpha);
 
   float defaultCutoff = 0.2f;
   if (gridBoundDist > defaultCutoff)
-    return displace;
+    return displacement;
 
   vec3 offsetWorldPos2 = worldPos * 0.5f + 0.5f; // Offset by 0.5 so the cell edges are in the other cells
 
-  float defaultDisplaceAlpha = 1.f - (gridBoundDist / defaultCutoff);
-  float defaultDisplace = TerrainColorWithOffset(offsetWorldPos2, normal, scaling2, textBlendAlpha).x;
-  return mix(displace, defaultDisplace, defaultDisplaceAlpha);
-}
-
-vec3 SubgroupNormal(vec3 v)
-{
-  uint baseVertex = gl_SubgroupInvocationID & (~3u);
-  vec3 v0 = subgroupShuffle(v, baseVertex);
-  vec3 v1 = subgroupShuffle(v, baseVertex + 1);
-  vec3 v2 = subgroupShuffle(v, baseVertex + 2);
-  return normalize(cross(v1 - v0, v2 - v0));
-}
-
-vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
-{
-  return dir - dot(dir, proj) * proj;
-}
-
-vec3 AlignToNormal(const vec2 dir, const vec3 normal, const uint planeID)
-{
-  vec3 tangent;
-  vec3 bitangent;
-  if (planeID == 0 || planeID == 2)
-  {
-    tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal) * abs(normal.x);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal) * abs(normal.x);
-  }
-  else if (planeID == 1 || planeID == 3)
-  {
-    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal) * abs(normal.y);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal) * abs(normal.y);
-  }
-  else
-  {
-    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal) * abs(normal.z);
-    bitangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal) * abs(normal.z);
-  }
-
-  vec3 gradient = dir.x * tangent + dir.y * bitangent;
-  return normalize(normal - gradient);
+  float defaultDispAlpha = 1.f - (gridBoundDist / defaultCutoff);
+  float defaultDisplacement = TerrainColorWithOffset(offsetWorldPos2, normal, scaling2, textBlendAlpha);
+  return mix(displacement, defaultDisplacement, defaultDispAlpha);
 }
 
 void main()
@@ -456,7 +456,7 @@ void main()
 
   v *= ad.x + planetScale;
 
-  //v += normalize(v) * 3.5f * TerrainTextDisplace(v, normal.xyz);
+  v += normalize(v) * 2.f * TerrainColor(v, normal.xyz);
 
   uint delta = 3u - gl_SubgroupInvocationID % 4;
   float parent = subgroupShuffleDown(v, delta)[vIdx % 3];

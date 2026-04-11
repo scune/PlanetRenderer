@@ -135,8 +135,8 @@ vec3 TerrainColorWithOffset(vec3 offsetWorldPos, float scaling2, float textBlend
 
 vec3 TerrainColor()
 {
-  const float slopeRockCutoff = 0.8f;
-  const float slopeRockBlendCutoff = 0.85f;
+  const float slopeRockCutoff = 0.5f;
+  const float slopeRockBlendCutoff = 0.55f;
 
   float slope = dot(normalize(inPos.xyz), inNormal.xyz);
   bool rock = (slope < slopeRockCutoff);
@@ -197,9 +197,9 @@ vec2 CubeProj(const vec3 pos)
 void main()
 {
   //Swapchain = vec4(UintToColor(PcgHash(inVertexID)) + vec3(0.f, 0.f, 0.5f), 1.f);
-  //Swapchain = vec4(TerrainColor(), 1.f);
+  Swapchain = vec4(TerrainColor(), 1.f);
   //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
-  Swapchain = vec4(inNormal.xyz * 0.5f + 0.5f, 1.f);
+  //Swapchain = vec4(inNormal.xyz * 0.5f + 0.5f, 1.f);
   //Swapchain = vec4(inNormal.xyz, 1.f);
   //Swapchain = vec4(dot(inNormal.xyz, normalize(inPos.xyz)));
 }
