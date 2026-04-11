@@ -200,5 +200,6 @@ void main()
   //Swapchain = vec4(TerrainColor(), 1.f);
   //Swapchain = vec4(CubeProj(normalize(inPos.xyz)), 0.f, 1.f);
   Swapchain = vec4(inNormal.xyz * 0.5f + 0.5f, 1.f);
+  //Swapchain = vec4(inNormal.xyz, 1.f);
   //Swapchain = vec4(dot(inNormal.xyz, normalize(inPos.xyz)));
 }

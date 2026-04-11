@@ -199,51 +199,18 @@ vec3 PerlinNoise(const uvec2 uv, const vec2 uvFract, const uvec3 cubePos, const 
               du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
+vec3 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, const vec3 normal)
 {
-  return dir - dot(dir, proj) * proj;
-}
-
-vec3 AlignGradient(const vec2 dir, const vec3 normal, const uint planeID)
-{/*
-  vec3 tangent = normalize(cross(normal, vec3(0.f, 0.f, 1.f)));
-  vec3 bitangent = cross(normal, tangent);*/
-  vec3 tangent;
-  vec3 bitangent;
-  if (planeID == 0 || planeID == 2)
-  {
-    tangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal) * abs(normal.x);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal) * abs(normal.x);
-  }
-  else if (planeID == 1 || planeID == 3)
-  {
-    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal) * abs(normal.y);
-    bitangent = ProjectOrthogonal(vec3(0.f, 0.f, 1.f), normal) * abs(normal.y);
-  }
-  else
-  {
-    tangent = ProjectOrthogonal(vec3(1.f, 0.f, 0.f), normal) * abs(normal.z);
-    bitangent = ProjectOrthogonal(vec3(0.f, 1.f, 0.f), normal) * abs(normal.z);
-  }
-
-  vec3 gradient = dir.x * tangent + dir.y * bitangent;
-  return gradient;
-}
-
-vec4 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, const vec3 normal)
-{
-  const mat2 m = mat2(0.8f, -0.6f,
-                      0.6f,  0.8f);
-
   p.x += planeID; // ]planeID, planeID + 1[
   p *= float(fbmFrequency); // ]planeID * fbmFrequency, (planeID + 1) * fbmFrequency[
   uvec3 extent = uvec3(planeID * fbmFrequency, (planeID + 1) * fbmFrequency, fbmFrequency); // .x = x_min, .y = x_max, .z = y_max
   vec2 uvFract = fract(p);
   uvec2 uv = uvec2(p);
 
-  vec4 an = vec4(0.f); // .x = height, .yz = derivate
+  vec3 an = vec3(0.f); // .x = height, .yz = derivate
   float b = 1.f;
-  vec3 d = vec3(0.f);
+  vec2 d = vec2(0.f);
+
   cubePosF *= fbmFrequency;
   vec3 cubeFract = fract(cubePosF);
   uvec3 cubePos = uvec3(cubePosF);
@@ -251,11 +218,12 @@ vec4 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
   {
     vec3 n = PerlinNoise(uv, uvFract, cubePos, cubeFract, extent, extent3, planeID);
 
-    vec3 N = AlignGradient(n.yz * amplitudePercent, normal, planeID);
+    //vec2 N = AlignGradient(n.yz * amplitudePercent, normal, planeID);
+    vec2 N = n.yz * amplitudePercent;
 
     float erosion = 1.f + dot(d, d);
     //float erosion = 1.f;
-    an.yzw += N / erosion;
+    an.yz += N / erosion;
 
     d += N;
 
@@ -264,8 +232,8 @@ vec4 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
     an.x += b * n.x / erosion2;
 
     b *= 0.5f;
-    //p = m * p * 2.f; // TODO: Maybe fix?
     extent <<= 1;
+
     uv <<= 1;
     uvFract *= 2.f;
     uv += uvec2(uvFract);
@@ -276,7 +244,7 @@ vec4 Terrain(vec2 p, vec3 cubePosF, const uint planeID, const uint extent3, cons
     cubePos += uvec3(cubeFract);
     cubeFract = fract(cubeFract);
   }
-  an.yzw *= float(fbmFrequency);
+  an.yz *= float(fbmFrequency);
   return an;
 }
 
@@ -419,15 +387,13 @@ vec3 SubgroupNormal(vec3 v)
   return normalize(cross(v1 - v0, v2 - v0));
 }
 
-/*vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
+vec3 ProjectOrthogonal(vec3 dir, vec3 proj)
 {
   return dir - dot(dir, proj) * proj;
-}*/
+}
 
 vec3 AlignToNormal(const vec2 dir, const vec3 normal, const uint planeID)
-{/*
-  vec3 tangent = normalize(cross(normal, vec3(0.f, 0.f, 1.f)));
-  vec3 bitangent = cross(normal, tangent);*/
+{
   vec3 tangent;
   vec3 bitangent;
   if (planeID == 0 || planeID == 2)
@@ -477,13 +443,14 @@ void main()
   vec3 cubeWorldPos;
   vec2 uv = CubeProj(v, planeID, extent3, cubeWorldPos);
 
-  vec4 ad = Terrain(uv, cubeWorldPos, planeID, extent3, v);
+  vec3 ad = Terrain(uv, cubeWorldPos, planeID, extent3, v);
   ad.x *= fbmAmplitude;
 
   vec4 normal;
-  //normal.xyz = AlignToNormal(ad.yz * amplitudePercent, v, planeID);
+  normal.xyz = AlignToNormal(ad.yz, v, planeID);
   //normal.xyz = normalize(vec3(-ad.yz, 1.f));
-  normal.xyz = normalize(v - ad.yzw);
+  //normal.xyz = vec3(ad.yz, 0.f);
+  //normal.xyz = normalize(v - ad.yzw);
   //normal.xyz = cubeWorldPos;
   //normal.xyz = SubgroupNormal(v);
   normal.w = ad.x;
