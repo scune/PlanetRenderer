@@ -33,6 +33,7 @@ private:
   const float mFar{20000.f};
 
   glm::vec3 mPos{0.f};
+  glm::vec3 mPlanetUp{0.f, 0.f, 1.f};
   float mSpeed{1.f};
 
   inline void GetMouseOffset(float& x_offset, float& y_offset);

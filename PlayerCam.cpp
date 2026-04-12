@@ -58,6 +58,10 @@ inline void PlayerCam::ProcessInputEvents()
     ComputeMouseEvents();
   }
 
+  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
+  mPlanetRot = alignment * mRot;
+  mPlanetRot = glm::normalize(mPlanetRot);
+
   // Position
   float speed = mSpeed * gContext.GetDeltaTime();
   if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
@@ -75,35 +79,36 @@ inline void PlayerCam::ProcessInputEvents()
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
-    mPos += mPlanetRot * speed;
+    mPos += mRot * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
-    mPos -= mPlanetRot * speed;
+    mPos -= mRot * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
-    mPos +=
-        glm::normalize(glm::cross(mPlanetRot, glm::normalize(mPos))) * speed;
+    mPos += glm::cross(mPlanetRot, mPlanetUp) * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
-    mPos -=
-        glm::normalize(glm::cross(mPlanetRot, glm::normalize(mPos))) * speed;
+    mPos -= glm::cross(mPlanetRot, mPlanetUp) * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
-    mPos += glm::normalize(mPos) * speed;
+    mPos += mPlanetUp * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
   {
-    mPos -= glm::normalize(mPos) * speed;
+    mPos -= mPlanetUp * speed;
   }
+
+  mPlanetUp = glm::normalize(mPos);
 }
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  return glm::lookAt(mPos, mPos + mPlanetRot, glm::normalize(mPos));
+  return glm::lookAt(mPos, mPos + mPlanetRot, mPlanetUp);
+  // return glm::lookAt(mPos, mPos + mRot, glm::vec3(0.f, 0.f, 1.f));
 }
 
 inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
@@ -156,8 +161,4 @@ inline void PlayerCam::UpdateRotation()
   mRot.y = std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
   mRot.z = std::sin(glm::radians(mDirPitch));
   mRot = glm::normalize(mRot);
-
-  glm::vec3 planetNormal = glm::normalize(mPos);
-  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), planetNormal);
-  mPlanetRot = alignment * mRot;
 }
