@@ -7,12 +7,12 @@
 #include "Images.hpp"
 #include "Libs.hpp"
 #include "MeshGen.hpp"
-#include "Noise.hpp"
 #include "ResultCheck.hpp"
 #include "Shader.hpp"
 #include "Shaders/PlanetVertex.glsl.hpp"
 #include "Swapchain.hpp"
 #include "Textures.hpp"
+#include "fbmPerlin.hpp"
 
 void PlanetRenderer::Init()
 {
@@ -29,9 +29,9 @@ void PlanetRenderer::Init()
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
-  mCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
-  mCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));
-  mCam.SetSpeed(1000.f);
+  mPlayerCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
+  mPlayerCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));
+  mPlayerCam.SetSpeed(1000.f);
 }
 
 void PlanetRenderer::CreateBuffers()
@@ -267,29 +267,39 @@ void PlanetRenderer::CreateGraphicsShader()
 
 void PlanetRenderer::Update()
 {
-  mCam.Update();
-  /*
-  if (gContext.GetFrameCounter() % 16 == 0)
-  {
-    CbtLodTest(mVertices, mIndices, mCbtData, 14, mCam.GetPos(), 100.f);
+  const float playerHeight = 10.f;
 
-    IfNThrow(BufferCopyToHost(mVertexBuffer, mVertices.data(),
-                              VecByteSize(mVertices)),
-             "Failed to copy data to vertex buffer!");
-    IfNThrow(
-        BufferCopyToHost(mIndexBuffer, mIndices.data(), VecByteSize(mIndices)),
-        "Failed to copy data to index buffer!");
-  }*/
+  const glm::vec3 normPos = glm::normalize(mPlayerCam.GetPos());
 
-  // COUT_VEC3(mCam.GetPos());
-  // COUT_VEC3(mCam.GetRot());
+  // Player pos
+  glm::vec3 g = -normPos * 9.f * (float)gContext.GetDeltaTime();
+  glm::vec3 pos = mPlayerCam.GetPos() + g;
+  float distToCenter = glm::length(pos) - playerHeight;
+
+  uint32_t planeID;
+  uint32_t extent3;
+  glm::vec3 cubePos;
+  glm::vec2 uv = CubeProj(normPos, planeID, extent3, cubePos);
+
+  float displacement = FbmPerlin(uv, cubePos, planeID, extent3, 12, 0.04f, 10);
+  displacement *= 10000.f * 0.04f;
+  displacement += 10000.f;
+  pos += normPos * std::max(0.f, displacement - distToCenter);
+
+  mPlayerCam.SetPos(pos);
+
+  mPlayerCam.Update();
+
+  COUT_VEC3(mPlayerCam.GetPos());
+  // COUT_VEC3(mPlayerCam.GetRot());
 
   SceneData_t data{};
-  data.camMatrix = mCam.GetMatrix();
+  data.camMatrix = mPlayerCam.GetMatrix();
   IfNThrow(BufferCopyToHost(mSceneData, &data),
            "Failed to update scene data buffer!");
 
-  mCbtBisection.Update(mCam.GetPos(), mCam.GetMatrix(), mCam.GetRot());
+  mCbtBisection.Update(mPlayerCam.GetPos(), mPlayerCam.GetMatrix(),
+                       mPlayerCam.GetRot());
 }
 
 void PlanetRenderer::DrawCompute(VkCommandBuffer cmdBuffer,

@@ -3,10 +3,11 @@
 #include "Libs.hpp"
 
 #include "Buffers.hpp"
-#include "Camera.hpp"
 #include "CbtGpuBisection.hpp"
 #include "DescriptorSet.hpp"
+#include "FreeFlyCam.hpp"
 #include "Images.hpp"
+#include "PlayerCam.hpp"
 
 class PlanetRenderer
 {
@@ -47,7 +48,8 @@ private:
   std::array<VkShaderEXT, 2> mShader{VK_NULL_HANDLE};
   VkPipelineLayout mLayout{VK_NULL_HANDLE};
 
-  Camera mCam{};
+  // FreeFlyCam mFreeFlyCam{};
+  PlayerCam mPlayerCam{};
   CbtBisection mCbtBisection{};
 
   struct SceneData_t

@@ -1,9 +1,27 @@
-#include "Camera.hpp"
+#include "PlayerCam.hpp"
+
+#include <glm/gtx/quaternion.hpp>
 
 #include "Context.hpp"
 #include "Swapchain.hpp"
 
-void Camera::Update()
+void PlayerCam::SetRot(const glm::vec3& rot) noexcept
+{
+  assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
+         "Parameter \"rot\" needs to be normalized!");
+
+  mRot = rot;
+  mDirPitch = std::asin(rot.z);
+  mDirYaw = std::asin(rot.x / std::cos(mDirPitch));
+  mDirPitch = glm::degrees(mDirPitch);
+  mDirYaw = glm::degrees(mDirYaw);
+
+  glm::vec3 planetNormal = glm::normalize(mPos);
+  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), planetNormal);
+  mPlanetRot = alignment * mRot;
+}
+
+void PlayerCam::Update()
 {
   if (mLastExtent.width != gSwapchain.GetExtent().width ||
       mLastExtent.height != gSwapchain.GetExtent().height)
@@ -25,7 +43,7 @@ void Camera::Update()
   mMat = mProjMat * CalculateViewMatrix();
 }
 
-inline void Camera::ProcessInputEvents()
+inline void PlayerCam::ProcessInputEvents()
 {
   const auto window = gContext.GetWindow();
 
@@ -57,42 +75,44 @@ inline void Camera::ProcessInputEvents()
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
-    mPos += mRot * speed;
+    mPos += mPlanetRot * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
-    mPos -= mRot * speed;
+    mPos -= mPlanetRot * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
-    mPos += glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
+    mPos +=
+        glm::normalize(glm::cross(mPlanetRot, glm::normalize(mPos))) * speed;
   }
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+  else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
-    mPos -= glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
+    mPos -=
+        glm::normalize(glm::cross(mPlanetRot, glm::normalize(mPos))) * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
-    mPos += glm::vec3(0.f, 0.f, 1.f) * speed;
+    mPos += glm::normalize(mPos) * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
   {
-    mPos -= glm::vec3(0.f, 0.f, 1.f) * speed;
+    mPos -= glm::normalize(mPos) * speed;
   }
 }
 
-inline glm::mat4 Camera::CalculateViewMatrix()
+inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  return glm::lookAt(mPos, mPos + mRot, glm::vec3(0.0f, 0.0f, 1.0f));
+  return glm::lookAt(mPos, mPos + mPlanetRot, glm::normalize(mPos));
 }
 
-inline void Camera::CalculateProjMatrix(float aspectRatio)
+inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
 {
   mProjMat = glm::perspective(glm::radians(mFov), aspectRatio, mNear, mFar);
   mProjMat[1][1] *= -1;
 }
 
-inline void Camera::GetMouseOffset(float& x_offset, float& y_offset)
+inline void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
 {
   glfwSetInputMode(gContext.GetWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -117,7 +137,7 @@ inline void Camera::GetMouseOffset(float& x_offset, float& y_offset)
   y_offset *= mSensitivity;
 }
 
-inline void Camera::ComputeMouseEvents()
+inline void PlayerCam::ComputeMouseEvents()
 {
   float x_offset;
   float y_offset;
@@ -130,16 +150,14 @@ inline void Camera::ComputeMouseEvents()
   UpdateRotation();
 }
 
-inline void Camera::UpdateRotation()
+inline void PlayerCam::UpdateRotation()
 {
-  glm::vec3 direction;
-  direction.x =
-      std::sin(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  direction.y =
-      std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  direction.z = std::sin(glm::radians(mDirPitch));
-  direction = glm::normalize(direction);
+  mRot.x = std::sin(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
+  mRot.y = std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
+  mRot.z = std::sin(glm::radians(mDirPitch));
+  mRot = glm::normalize(mRot);
 
-  mRot += direction - mLastDir;
-  mLastDir = direction;
+  glm::vec3 planetNormal = glm::normalize(mPos);
+  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), planetNormal);
+  mPlanetRot = alignment * mRot;
 }

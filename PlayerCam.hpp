@@ -2,26 +2,15 @@
 
 #include "Libs.hpp"
 
-class Camera
+class PlayerCam
 {
 public:
-  Camera() = default;
+  PlayerCam() = default;
 
   void Update();
 
   inline void SetPos(const glm::vec3& pos) noexcept { mPos = pos; }
-  inline void SetRot(const glm::vec3& rot) noexcept
-  {
-    assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
-           "Parameter \"rot\" needs to be normalized!");
-
-    mRot = rot;
-    mLastDir = rot;
-    mDirPitch = std::asin(rot.z);
-    mDirYaw = std::asin(rot.x / std::cos(mDirPitch));
-    mDirPitch = glm::degrees(mDirPitch);
-    mDirYaw = glm::degrees(mDirYaw);
-  }
+  void SetRot(const glm::vec3& rot) noexcept;
   inline void SetSpeed(float speed) noexcept { mSpeed = speed; }
 
   inline const glm::mat4& GetMatrix() const noexcept { return mMat; }
@@ -43,14 +32,14 @@ private:
   const float mNear{0.01f};
   const float mFar{20000.f};
 
-  glm::vec3 mPos{glm::vec3(0.f)};
+  glm::vec3 mPos{0.f};
   float mSpeed{1.f};
 
   inline void GetMouseOffset(float& x_offset, float& y_offset);
   inline void ComputeMouseEvents();
   inline void UpdateRotation();
-  glm::vec3 mRot{glm::vec3(0.f)};
-  glm::vec3 mLastDir{glm::vec3(0.f)};
+  glm::vec3 mRot{0.f};
+  glm::vec3 mPlanetRot{0.f};
   float mDirYaw{0.f};
   float mDirPitch{0.f};
   float mSensitivity{30.f};
