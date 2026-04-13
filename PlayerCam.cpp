@@ -9,16 +9,6 @@ void PlayerCam::SetRot(const glm::vec3& rot) noexcept
 {
   assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
          "Parameter \"rot\" needs to be normalized!");
-
-  mRot = rot;
-  mDirPitch = std::asin(rot.z);
-  mDirYaw = std::asin(rot.x / std::cos(mDirPitch));
-  mDirPitch = glm::degrees(mDirPitch);
-  mDirYaw = glm::degrees(mDirYaw);
-
-  glm::vec3 planetNormal = glm::normalize(mPos);
-  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), planetNormal);
-  mPlanetRot = alignment * mRot;
 }
 
 void PlayerCam::Update()
@@ -58,9 +48,8 @@ inline void PlayerCam::ProcessInputEvents()
     ComputeMouseEvents();
   }
 
-  glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
-  mPlanetRot = alignment * mRot;
-  mPlanetRot = glm::normalize(mPlanetRot);
+  // glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
+  // mPlanetRot = alignment * mRot;
 
   // Position
   float speed = mSpeed * gContext.GetDeltaTime();
@@ -77,21 +66,24 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
+  glm::vec3 worldForward = mOrientation * glm::vec3(0.f, 0.f, -1.f);
+  glm::vec3 worldRight = mOrientation * glm::vec3(1.f, 0.f, 0.f);
+
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
-    mPos += mRot * speed;
+    mPos += worldForward * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
-    mPos -= mRot * speed;
+    mPos -= worldForward * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
-    mPos += glm::cross(mPlanetRot, mPlanetUp) * speed;
+    mPos += worldRight * speed;
   }
-  else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
-    mPos -= glm::cross(mPlanetRot, mPlanetUp) * speed;
+    mPos -= worldRight * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
@@ -102,12 +94,23 @@ inline void PlayerCam::ProcessInputEvents()
     mPos -= mPlanetUp * speed;
   }
 
+  glm::vec3 oldUp = mPlanetUp;
   mPlanetUp = glm::normalize(mPos);
+
+  // Find the rotation that moves the old normal to the new normal
+  glm::quat surfaceAlignment = glm::rotation(oldUp, mPlanetUp);
+
+  // Apply this to the orientation so the player "tilts" with the horizon
+  mOrientation = surfaceAlignment * mOrientation;
 }
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  return glm::lookAt(mPos, mPos + mPlanetRot, mPlanetUp);
+  // return glm::lookAt(mPos, mPos + mPlanetRot, mPlanetUp);
+  glm::mat4 translation = glm::translate(glm::mat4(1.0f), -mPos);
+  glm::mat4 viewMatrix =
+      glm::mat4_cast(glm::conjugate(mOrientation)) * translation;
+  return viewMatrix;
   // return glm::lookAt(mPos, mPos + mRot, glm::vec3(0.f, 0.f, 1.f));
 }
 
@@ -124,19 +127,18 @@ inline void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
   double x_pos = 0.f, y_pos = 0.f;
   glfwGetCursorPos(gContext.GetWindow(), &x_pos, &y_pos);
 
-  static double lastX, lastY;
   if (mFirstClick)
   {
-    lastX = x_pos;
-    lastY = y_pos;
+    mLastX = x_pos;
+    mLastY = y_pos;
     mFirstClick = false;
   }
 
-  x_offset = x_pos - lastX;
-  y_offset = lastY - y_pos;
+  x_offset = x_pos - mLastX;
+  y_offset = mLastY - y_pos;
 
-  lastX = x_pos;
-  lastY = y_pos;
+  mLastX = x_pos;
+  mLastY = y_pos;
 
   x_offset *= mSensitivity;
   y_offset *= mSensitivity;
@@ -148,17 +150,13 @@ inline void PlayerCam::ComputeMouseEvents()
   float y_offset;
   GetMouseOffset(x_offset, y_offset);
 
-  mDirYaw += x_offset * gContext.GetDeltaTime();
-  mDirPitch += y_offset * gContext.GetDeltaTime();
-  mDirPitch = std::clamp(mDirPitch, -89.f, 89.f);
+  float deltaTime = (float)gContext.GetDeltaTime();
+  // Yaw: Rotate around the LOCAL Up axis
+  glm::quat yaw =
+      glm::angleAxis(glm::radians(-x_offset * deltaTime), glm::vec3(0, 1, 0));
+  // Pitch: Rotate around the LOCAL Right axis
+  glm::quat pitch =
+      glm::angleAxis(glm::radians(y_offset * deltaTime), glm::vec3(1, 0, 0));
 
-  UpdateRotation();
-}
-
-inline void PlayerCam::UpdateRotation()
-{
-  mRot.x = std::sin(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  mRot.y = std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  mRot.z = std::sin(glm::radians(mDirPitch));
-  mRot = glm::normalize(mRot);
+  mOrientation = mOrientation * yaw * pitch;
 }

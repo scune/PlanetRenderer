@@ -31,7 +31,7 @@ void PlanetRenderer::Init()
 
   mPlayerCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
   mPlayerCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));
-  mPlayerCam.SetSpeed(10000.f);
+  mPlayerCam.SetSpeed(20.f);
 }
 
 void PlanetRenderer::CreateBuffers()
@@ -299,7 +299,7 @@ void PlanetRenderer::Update()
            "Failed to update scene data buffer!");
 
   mCbtBisection.Update(mPlayerCam.GetPos(), mPlayerCam.GetMatrix(),
-                       mPlayerCam.GetRot());
+                       mPlayerCam.GetForward());
 }
 
 void PlanetRenderer::DrawCompute(VkCommandBuffer cmdBuffer,
