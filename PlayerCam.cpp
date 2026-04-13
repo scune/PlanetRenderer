@@ -48,9 +48,6 @@ inline void PlayerCam::ProcessInputEvents()
     ComputeMouseEvents();
   }
 
-  // glm::quat alignment = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
-  // mPlanetRot = alignment * mRot;
-
   // Position
   float speed = mSpeed * gContext.GetDeltaTime();
   if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
@@ -94,11 +91,9 @@ inline void PlayerCam::ProcessInputEvents()
     mPos -= mPlanetUp * speed;
   }
 
-  glm::vec3 oldUp = mPlanetUp;
-  mPlanetUp = glm::normalize(mPos);
-
   // Find the rotation that moves the old normal to the new normal
-  glm::quat surfaceAlignment = glm::rotation(oldUp, mPlanetUp);
+  mPlanetUp = glm::normalize(mPos);
+  glm::quat surfaceAlignment = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
 
   // Apply this to the orientation so the player "tilts" with the horizon
   mOrientation = surfaceAlignment * mOrientation;
@@ -151,12 +146,13 @@ inline void PlayerCam::ComputeMouseEvents()
   GetMouseOffset(x_offset, y_offset);
 
   float deltaTime = (float)gContext.GetDeltaTime();
-  // Yaw: Rotate around the LOCAL Up axis
-  glm::quat yaw =
-      glm::angleAxis(glm::radians(-x_offset * deltaTime), glm::vec3(0, 1, 0));
-  // Pitch: Rotate around the LOCAL Right axis
-  glm::quat pitch =
-      glm::angleAxis(glm::radians(y_offset * deltaTime), glm::vec3(1, 0, 0));
+  mYaw -= glm::radians(x_offset * deltaTime);
+  mPitch += glm::radians(y_offset * deltaTime);
+  mPitch = std::clamp(mPitch, 0.1f, 179.9f);
 
-  mOrientation = mOrientation * yaw * pitch;
+  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0, 1, 0));
+  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(1, 0, 0));
+  yawQ = glm::normalize(yawQ);
+  pitchQ = glm::normalize(pitchQ);
+  mOrientation = yawQ * pitchQ;
 }

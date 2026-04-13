@@ -45,8 +45,9 @@ private:
 
   double mLastX;
   double mLastY;
-
   float mSensitivity{30.f};
+  float mYaw;
+  float mPitch;
 
   bool mFirstUpdate{true};
   bool mFirstClick;
