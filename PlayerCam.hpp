@@ -16,9 +16,9 @@ public:
   inline const glm::mat4& GetMatrix() const noexcept { return mMat; }
   inline const glm::mat4& GetPrevMatrix() const noexcept { return mPrevMat; }
   inline const glm::vec3& GetPos() const noexcept { return mPos; }
-  inline glm::vec3 GetForward() const noexcept
+  inline glm::vec3 GetRot() const noexcept
   {
-    return mOrientation * glm::vec3(0, 0, -1);
+    return mOrientation * glm::vec3(0.f, 0.f, -1.f);
   }
   inline float GetNear() const noexcept { return mNear; }
   inline float GetFar() const noexcept { return mFar; }
@@ -41,7 +41,11 @@ private:
 
   inline void GetMouseOffset(float& x_offset, float& y_offset);
   inline void ComputeMouseEvents();
-  glm::quat mOrientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+  glm::quat mOrientation{1.f, 0.f, 0.f, 0.f};
+  glm::quat mMovementOri{1.f, 0.f, 0.f, 0.f};
+  glm::vec3 mLocalForward{-1.f, 0.f, 0.f};
+  glm::vec3 mLocalRight{0.f, 1.f, 0.f};
+  glm::vec3 mLocalUp{0.f, 0.f, 1.f};
 
   double mLastX;
   double mLastY;

@@ -63,24 +63,24 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
-  glm::vec3 worldForward = mOrientation * glm::vec3(0.f, 0.f, -1.f);
-  glm::vec3 worldRight = mOrientation * glm::vec3(1.f, 0.f, 0.f);
+  glm::vec3 moveForward = mMovementOri * glm::vec3(-1.f, 0.f, 0.f);
+  glm::vec3 moveRight = mMovementOri * glm::vec3(0.f, 1.f, 0.f);
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
-    mPos += worldForward * speed;
+    mPos += moveForward * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
-    mPos -= worldForward * speed;
+    mPos -= moveForward * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
-    mPos += worldRight * speed;
+    mPos += moveRight * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
-    mPos -= worldRight * speed;
+    mPos -= moveRight * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
@@ -91,22 +91,12 @@ inline void PlayerCam::ProcessInputEvents()
     mPos -= mPlanetUp * speed;
   }
 
-  // Find the rotation that moves the old normal to the new normal
   mPlanetUp = glm::normalize(mPos);
-  glm::quat surfaceAlignment = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
-
-  // Apply this to the orientation so the player "tilts" with the horizon
-  mOrientation = surfaceAlignment * mOrientation;
 }
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  // return glm::lookAt(mPos, mPos + mPlanetRot, mPlanetUp);
-  glm::mat4 translation = glm::translate(glm::mat4(1.0f), -mPos);
-  glm::mat4 viewMatrix =
-      glm::mat4_cast(glm::conjugate(mOrientation)) * translation;
-  return viewMatrix;
-  // return glm::lookAt(mPos, mPos + mRot, glm::vec3(0.f, 0.f, 1.f));
+  return glm::lookAt(mPos, mPos + mLocalForward, mLocalUp);
 }
 
 inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
@@ -147,12 +137,21 @@ inline void PlayerCam::ComputeMouseEvents()
 
   float deltaTime = (float)gContext.GetDeltaTime();
   mYaw -= glm::radians(x_offset * deltaTime);
+  mYaw -= (mYaw >= glm::radians(360.f)) ? glm::radians(360.f) : 0.f;
+  mYaw += (mYaw <= glm::radians(-360.f)) ? glm::radians(360.f) : 0.f;
   mPitch += glm::radians(y_offset * deltaTime);
-  mPitch = std::clamp(mPitch, 0.1f, 179.9f);
+  mPitch = std::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
 
-  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0, 1, 0));
-  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(1, 0, 0));
-  yawQ = glm::normalize(yawQ);
-  pitchQ = glm::normalize(pitchQ);
+  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
+  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
   mOrientation = yawQ * pitchQ;
+
+  glm::quat alignRotation = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
+  mOrientation = alignRotation * mOrientation;
+
+  mMovementOri = mOrientation;
+
+  mLocalForward = mOrientation * glm::vec3(-1.f, 0.f, 0.f);
+  mLocalRight = mOrientation * glm::vec3(0.f, 1.f, 0.f);
+  mLocalUp = mOrientation * glm::vec3(0.f, 0.f, 1.f);
 }

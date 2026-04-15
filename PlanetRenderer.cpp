@@ -290,7 +290,7 @@ void PlanetRenderer::Update()
 
   mPlayerCam.Update();
 
-  COUT_VEC3(mPlayerCam.GetPos());
+  // COUT_VEC3(mPlayerCam.GetPos());
   // COUT_VEC3(mPlayerCam.GetRot());
 
   SceneData_t data{};
@@ -299,7 +299,7 @@ void PlanetRenderer::Update()
            "Failed to update scene data buffer!");
 
   mCbtBisection.Update(mPlayerCam.GetPos(), mPlayerCam.GetMatrix(),
-                       mPlayerCam.GetForward());
+                       mPlayerCam.GetRot());
 }
 
 void PlanetRenderer::DrawCompute(VkCommandBuffer cmdBuffer,
