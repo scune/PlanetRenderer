@@ -42,6 +42,7 @@ private:
   inline void GetMouseOffset(float& x_offset, float& y_offset);
   inline void ComputeMouseEvents();
   glm::quat mOrientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+  glm::quat mMoveDir = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
   double mLastX;
   double mLastY;

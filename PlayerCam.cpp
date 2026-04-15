@@ -63,8 +63,8 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
-  glm::vec3 worldForward = mOrientation * glm::vec3(0.f, 0.f, -1.f);
-  glm::vec3 worldRight = mOrientation * glm::vec3(1.f, 0.f, 0.f);
+  glm::vec3 worldForward = mMoveDir * glm::vec3(0.f, 0.f, -1.f);
+  glm::vec3 worldRight = mMoveDir * glm::vec3(1.f, 0.f, 0.f);
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
@@ -91,12 +91,7 @@ inline void PlayerCam::ProcessInputEvents()
     mPos -= mPlanetUp * speed;
   }
 
-  // Find the rotation that moves the old normal to the new normal
   mPlanetUp = glm::normalize(mPos);
-  glm::quat surfaceAlignment = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
-
-  // Apply this to the orientation so the player "tilts" with the horizon
-  mOrientation = surfaceAlignment * mOrientation;
 }
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
@@ -155,4 +150,9 @@ inline void PlayerCam::ComputeMouseEvents()
   yawQ = glm::normalize(yawQ);
   pitchQ = glm::normalize(pitchQ);
   mOrientation = yawQ * pitchQ;
+
+  mMoveDir = mOrientation;
+
+  glm::quat alignToPlanet = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
+  mOrientation = alignToPlanet * mOrientation;
 }
