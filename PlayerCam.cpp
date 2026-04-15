@@ -63,8 +63,13 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
+<<<<<<< HEAD
   glm::vec3 moveForward = mMovementOri * glm::vec3(-1.f, 0.f, 0.f);
   glm::vec3 moveRight = mMovementOri * glm::vec3(0.f, 1.f, 0.f);
+=======
+  glm::vec3 worldForward = mMoveDir * glm::vec3(0.f, 0.f, -1.f);
+  glm::vec3 worldRight = mMoveDir * glm::vec3(1.f, 0.f, 0.f);
+>>>>>>> 00aa4f5ed1d8b22deab5b350f817b4d57ca57d2a
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
@@ -146,6 +151,7 @@ inline void PlayerCam::ComputeMouseEvents()
   glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
   mOrientation = yawQ * pitchQ;
 
+<<<<<<< HEAD
   glm::quat alignRotation = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
   mOrientation = alignRotation * mOrientation;
 
@@ -154,4 +160,10 @@ inline void PlayerCam::ComputeMouseEvents()
   mLocalForward = mOrientation * glm::vec3(-1.f, 0.f, 0.f);
   mLocalRight = mOrientation * glm::vec3(0.f, 1.f, 0.f);
   mLocalUp = mOrientation * glm::vec3(0.f, 0.f, 1.f);
+=======
+  mMoveDir = mOrientation;
+
+  glm::quat alignToPlanet = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
+  mOrientation = alignToPlanet * mOrientation;
+>>>>>>> 00aa4f5ed1d8b22deab5b350f817b4d57ca57d2a
 }
