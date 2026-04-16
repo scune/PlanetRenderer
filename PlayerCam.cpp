@@ -1,7 +1,5 @@
 #include "PlayerCam.hpp"
 
-#include <glm/gtx/quaternion.hpp>
-
 #include "Context.hpp"
 #include "Swapchain.hpp"
 
@@ -45,8 +43,10 @@ inline void PlayerCam::ProcessInputEvents()
   }
   else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
   {
-    ComputeMouseEvents();
+    MouseEvents();
   }
+
+  KeyboardLookAround();
 
   // Position
   float speed = mSpeed * gContext.GetDeltaTime();
@@ -63,13 +63,8 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
-<<<<<<< HEAD
   glm::vec3 moveForward = mMovementOri * glm::vec3(-1.f, 0.f, 0.f);
   glm::vec3 moveRight = mMovementOri * glm::vec3(0.f, 1.f, 0.f);
-=======
-  glm::vec3 worldForward = mMoveDir * glm::vec3(0.f, 0.f, -1.f);
-  glm::vec3 worldRight = mMoveDir * glm::vec3(1.f, 0.f, 0.f);
->>>>>>> 00aa4f5ed1d8b22deab5b350f817b4d57ca57d2a
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
@@ -101,7 +96,7 @@ inline void PlayerCam::ProcessInputEvents()
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  return glm::lookAt(mPos, mPos + mLocalForward, mLocalUp);
+  return glm::lookAt(mPos, mPos + mLocalForward, mPlanetUp);
 }
 
 inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
@@ -110,7 +105,7 @@ inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
   mProjMat[1][1] *= -1;
 }
 
-inline void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
+void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
 {
   glfwSetInputMode(gContext.GetWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -134,36 +129,57 @@ inline void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
   y_offset *= mSensitivity;
 }
 
-inline void PlayerCam::ComputeMouseEvents()
+void PlayerCam::Rotate(float yawOffset, float pitchOffset)
 {
-  float x_offset;
-  float y_offset;
-  GetMouseOffset(x_offset, y_offset);
-
   float deltaTime = (float)gContext.GetDeltaTime();
-  mYaw -= glm::radians(x_offset * deltaTime);
+  mYaw -= glm::radians(yawOffset * deltaTime);
   mYaw -= (mYaw >= glm::radians(360.f)) ? glm::radians(360.f) : 0.f;
   mYaw += (mYaw <= glm::radians(-360.f)) ? glm::radians(360.f) : 0.f;
-  mPitch += glm::radians(y_offset * deltaTime);
+  mPitch += glm::radians(pitchOffset * deltaTime);
   mPitch = std::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
 
   glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
   glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
   mOrientation = yawQ * pitchQ;
 
-<<<<<<< HEAD
   glm::quat alignRotation = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
   mOrientation = alignRotation * mOrientation;
+
+  // TODO: Only orient pitch
 
   mMovementOri = mOrientation;
 
   mLocalForward = mOrientation * glm::vec3(-1.f, 0.f, 0.f);
   mLocalRight = mOrientation * glm::vec3(0.f, 1.f, 0.f);
   mLocalUp = mOrientation * glm::vec3(0.f, 0.f, 1.f);
-=======
-  mMoveDir = mOrientation;
+}
 
-  glm::quat alignToPlanet = glm::rotation(glm::vec3(0.f, 0.f, 1.f), mPlanetUp);
-  mOrientation = alignToPlanet * mOrientation;
->>>>>>> 00aa4f5ed1d8b22deab5b350f817b4d57ca57d2a
+inline void PlayerCam::KeyboardLookAround()
+{
+  float yawOffset = 0.f, pitchOffset = 0.f;
+  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_I) == GLFW_PRESS)
+  {
+    pitchOffset += mSensitivity;
+  }
+  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_K) == GLFW_PRESS)
+  {
+    pitchOffset -= mSensitivity;
+  }
+  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_J) == GLFW_PRESS)
+  {
+    yawOffset -= mSensitivity;
+  }
+  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_L) == GLFW_PRESS)
+  {
+    yawOffset += mSensitivity;
+  }
+  if (yawOffset != 0.f || pitchOffset != 0.f)
+    Rotate(yawOffset, pitchOffset);
+}
+
+inline void PlayerCam::MouseEvents()
+{
+  float yawOffset = 0.f, pitchOffset = 0.f;
+  GetMouseOffset(yawOffset, pitchOffset);
+  Rotate(yawOffset, pitchOffset);
 }
