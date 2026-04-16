@@ -145,8 +145,6 @@ void PlayerCam::Rotate(float yawOffset, float pitchOffset)
   glm::quat alignRotation = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
   mOrientation = alignRotation * mOrientation;
 
-  // TODO: Only orient pitch
-
   mMovementOri = mOrientation;
 
   mLocalForward = mOrientation * glm::vec3(-1.f, 0.f, 0.f);
