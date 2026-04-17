@@ -29,8 +29,7 @@ void PlanetRenderer::Init()
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
-  mPlayerCam.SetPos(glm::vec3(11200.f, 0.f, 0.f));
-  mPlayerCam.SetRot(glm::vec3(-1.f, 0.f, 0.f));
+  mPlayerCam.SetPos({11200.f, 0.f, 0.f});
   mPlayerCam.SetSpeed(200.f);
 }
 
@@ -291,7 +290,7 @@ void PlanetRenderer::Update()
   mPlayerCam.Update();
 
   // COUT_VEC3(mPlayerCam.GetPos());
-  // COUT_VEC3(mPlayerCam.GetRot());
+  COUT_VEC3(mPlayerCam.GetRot());
 
   SceneData_t data{};
   data.camMatrix = mPlayerCam.GetMatrix();

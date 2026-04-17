@@ -18,10 +18,7 @@ public:
   inline const glm::mat4& GetMatrix() const noexcept { return mMat; }
   inline const glm::mat4& GetPrevMatrix() const noexcept { return mPrevMat; }
   inline const glm::vec3& GetPos() const noexcept { return mPos; }
-  inline glm::vec3 GetRot() const noexcept
-  {
-    return mOrientation * glm::vec3(0.f, 0.f, -1.f);
-  }
+  glm::vec3 GetRot() const noexcept;
   inline float GetNear() const noexcept { return mNear; }
   inline float GetFar() const noexcept { return mFar; }
 
@@ -42,16 +39,13 @@ private:
   float mSpeed{1.f};
 
   void GetMouseOffset(float& x_offset, float& y_offset);
-  void Rotate(float yawOffset, float pitchOffset);
+  void Rotate(float yawOffset, float pitchOffset) noexcept;
+  inline void UpdateLocalRotation() noexcept;
   inline void KeyboardLookAround();
   inline void MouseEvents();
-
-  glm::quat mOrientation{glm::quat_identity<float, glm::defaultp>()};
-  glm::quat mMovementOri{glm::quat_identity<float, glm::defaultp>()};
-  glm::vec3 mLocalForward{-1.f, 0.f, 0.f};
-  glm::vec3 mLocalRight{0.f, 1.f, 0.f};
-  glm::vec3 mLocalUp{0.f, 0.f, 1.f};
-
+  glm::quat mPlanetRotation{1.f, 0.f, 0.f, 0.f};
+  glm::quat mLocalRotation{1.f, 0.f, 0.f, 0.f};
+  glm::quat mSurfaceBasis{1.f, 0.f, 0.f, 0.f};
   double mLastX;
   double mLastY;
   float mSensitivity{30.f};

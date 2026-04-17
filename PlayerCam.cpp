@@ -3,10 +3,22 @@
 #include "Context.hpp"
 #include "Swapchain.hpp"
 
+constexpr glm::vec3 localForward{1.f, 0.f, 0.f};
+constexpr glm::vec3 localRight{0.f, -1.f, 0.f};
+
 void PlayerCam::SetRot(const glm::vec3& rot) noexcept
 {
   assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
          "Parameter \"rot\" needs to be normalized!");
+
+  mYaw = glm::atan(rot.y, rot.x);
+  mPitch = glm::atan(rot.z, glm::distance(rot.x, rot.y));
+  UpdateLocalRotation();
+}
+
+glm::vec3 PlayerCam::GetRot() const noexcept
+{
+  return mPlanetRotation * localForward;
 }
 
 void PlayerCam::Update()
@@ -63,24 +75,24 @@ inline void PlayerCam::ProcessInputEvents()
     speed *= 0.1f;
   }
 
-  glm::vec3 moveForward = mMovementOri * glm::vec3(-1.f, 0.f, 0.f);
-  glm::vec3 moveRight = mMovementOri * glm::vec3(0.f, 1.f, 0.f);
+  const glm::vec3 forward = mPlanetRotation * localForward;
+  const glm::vec3 right = mPlanetRotation * localRight;
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
   {
-    mPos += moveForward * speed;
+    mPos += forward * speed;
   }
   else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
   {
-    mPos -= moveForward * speed;
+    mPos -= forward * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
   {
-    mPos += moveRight * speed;
+    mPos += right * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
   {
-    mPos -= moveRight * speed;
+    mPos -= right * speed;
   }
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
   {
@@ -91,12 +103,20 @@ inline void PlayerCam::ProcessInputEvents()
     mPos -= mPlanetUp * speed;
   }
 
+  glm::vec3 oldPlanetUp = mPlanetUp;
   mPlanetUp = glm::normalize(mPos);
+
+  glm::quat upAlignment = glm::rotation(oldPlanetUp, mPlanetUp);
+
+  mSurfaceBasis = upAlignment * mSurfaceBasis;
+  mSurfaceBasis = glm::normalize(mSurfaceBasis);
+
+  mPlanetRotation = mSurfaceBasis * mLocalRotation;
 }
 
 inline glm::mat4 PlayerCam::CalculateViewMatrix()
 {
-  return glm::lookAt(mPos, mPos + mLocalForward, mPlanetUp);
+  return glm::lookAt(mPos, mPos + mPlanetRotation * localForward, mPlanetUp);
 }
 
 inline void PlayerCam::CalculateProjMatrix(float aspectRatio)
@@ -129,27 +149,24 @@ void PlayerCam::GetMouseOffset(float& x_offset, float& y_offset)
   y_offset *= mSensitivity;
 }
 
-void PlayerCam::Rotate(float yawOffset, float pitchOffset)
+inline void PlayerCam::UpdateLocalRotation() noexcept
 {
-  float deltaTime = (float)gContext.GetDeltaTime();
-  mYaw -= glm::radians(yawOffset * deltaTime);
   mYaw -= (mYaw >= glm::radians(360.f)) ? glm::radians(360.f) : 0.f;
   mYaw += (mYaw <= glm::radians(-360.f)) ? glm::radians(360.f) : 0.f;
+  mPitch = glm::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
+
+  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, -1.f));
+  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, -1.f, 0.f));
+  mLocalRotation = yawQ * pitchQ;
+}
+
+void PlayerCam::Rotate(float yawOffset, float pitchOffset) noexcept
+{
+  float deltaTime = (float)gContext.GetDeltaTime();
+  mYaw += glm::radians(yawOffset * deltaTime);
   mPitch += glm::radians(pitchOffset * deltaTime);
-  mPitch = std::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
 
-  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
-  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
-  mOrientation = yawQ * pitchQ;
-
-  glm::quat alignRotation = glm::rotation({0.f, 0.f, 1.f}, mPlanetUp);
-  mOrientation = alignRotation * mOrientation;
-
-  mMovementOri = mOrientation;
-
-  mLocalForward = mOrientation * glm::vec3(-1.f, 0.f, 0.f);
-  mLocalRight = mOrientation * glm::vec3(0.f, 1.f, 0.f);
-  mLocalUp = mOrientation * glm::vec3(0.f, 0.f, 1.f);
+  UpdateLocalRotation();
 }
 
 inline void PlayerCam::KeyboardLookAround()
