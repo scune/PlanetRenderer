@@ -30,6 +30,7 @@ void PlanetRenderer::Init()
                      {mTextures, (uint32_t)std::size(mTextures)});
 
   mPlayerCam.SetPos({11200.f, 0.f, 0.f});
+  mPlayerCam.SetRot({1.f, 0.f, 0.f});
   mPlayerCam.SetSpeed(200.f);
 }
 
@@ -291,6 +292,17 @@ void PlanetRenderer::Update()
 
   // COUT_VEC3(mPlayerCam.GetPos());
   COUT_VEC3(mPlayerCam.GetRot());
+
+  static bool pressed{false};
+  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_T) == GLFW_PRESS && !pressed)
+  {
+
+    pressed = true;
+  }
+  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_T) == GLFW_RELEASE)
+  {
+    pressed = false;
+  }
 
   SceneData_t data{};
   data.camMatrix = mPlayerCam.GetMatrix();

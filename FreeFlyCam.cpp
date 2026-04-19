@@ -1,145 +1,24 @@
 #include "FreeFlyCam.hpp"
 
-#include "Context.hpp"
-#include "Swapchain.hpp"
-
-void FreeFlyCam::Update()
+void FreeFlyCam::UpdateLocalBasis()
 {
-  if (mLastExtent.width != gSwapchain.GetExtent().width ||
-      mLastExtent.height != gSwapchain.GetExtent().height)
-  {
-    CalculateProjMatrix(float(gSwapchain.GetExtent().width) /
-                        gSwapchain.GetExtent().height);
-    mLastExtent = gSwapchain.GetExtent();
-  }
-
-  ProcessInputEvents();
-
-  if (!mFirstUpdate)
-    mPrevMat = mMat;
-  else
-  {
-    mPrevMat = mProjMat * CalculateViewMatrix();
-    mFirstUpdate = false;
-  }
-  mMat = mProjMat * CalculateViewMatrix();
+  mForward = mRotation;
+  mRight = glm::cross(mRotation, glm::vec3(0.f, 0.f, 1.f));
 }
 
-inline void FreeFlyCam::ProcessInputEvents()
+glm::mat4 FreeFlyCam::CalculateViewMatrix()
 {
-  const auto window = gContext.GetWindow();
-
-  // Rotation
-  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE)
-  {
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    mFirstClick = true;
-  }
-  else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
-  {
-    ComputeMouseEvents();
-  }
-
-  // Position
-  float speed = mSpeed * gContext.GetDeltaTime();
-  if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-  {
-    speed *= 10.f;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-    {
-      speed *= 10.f;
-    }
-  }
-  else if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
-  {
-    speed *= 0.1f;
-  }
-
-  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-  {
-    mPos += mRot * speed;
-  }
-  else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-  {
-    mPos -= mRot * speed;
-  }
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-  {
-    mPos += glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
-  }
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-  {
-    mPos -= glm::normalize(glm::cross(mRot, glm::vec3(0.f, 0.f, 1.f))) * speed;
-  }
-  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-  {
-    mPos += glm::vec3(0.f, 0.f, 1.f) * speed;
-  }
-  else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-  {
-    mPos -= glm::vec3(0.f, 0.f, 1.f) * speed;
-  }
+  return glm::lookAt(mPos, mPos + mRotation, mUp);
 }
 
-inline glm::mat4 FreeFlyCam::CalculateViewMatrix()
+void FreeFlyCam::UpdateLocalRotation()
 {
-  return glm::lookAt(mPos, mPos + mRot, mUp);
-}
+  mYaw -= (mYaw >= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
+  mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
+  mPitch = glm::clamp(mPitch, glm::radians(-89.f), glm::radians(89.f));
 
-inline void FreeFlyCam::CalculateProjMatrix(float aspectRatio)
-{
-  mProjMat = glm::perspective(glm::radians(mFov), aspectRatio, mNear, mFar);
-  mProjMat[1][1] *= -1;
-}
-
-inline void FreeFlyCam::GetMouseOffset(float& x_offset, float& y_offset)
-{
-  glfwSetInputMode(gContext.GetWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-  double x_pos = 0.f, y_pos = 0.f;
-  glfwGetCursorPos(gContext.GetWindow(), &x_pos, &y_pos);
-
-  static double lastX, lastY;
-  if (mFirstClick)
-  {
-    lastX = x_pos;
-    lastY = y_pos;
-    mFirstClick = false;
-  }
-
-  x_offset = x_pos - lastX;
-  y_offset = lastY - y_pos;
-
-  lastX = x_pos;
-  lastY = y_pos;
-
-  x_offset *= mSensitivity;
-  y_offset *= mSensitivity;
-}
-
-inline void FreeFlyCam::ComputeMouseEvents()
-{
-  float x_offset;
-  float y_offset;
-  GetMouseOffset(x_offset, y_offset);
-
-  mDirYaw += x_offset * gContext.GetDeltaTime();
-  mDirPitch += y_offset * gContext.GetDeltaTime();
-  mDirPitch = std::clamp(mDirPitch, -89.f, 89.f);
-
-  UpdateRotation();
-}
-
-inline void FreeFlyCam::UpdateRotation()
-{
-  glm::vec3 direction;
-  direction.x =
-      std::sin(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  direction.y =
-      std::cos(glm::radians(mDirYaw)) * std::cos(glm::radians(mDirPitch));
-  direction.z = std::sin(glm::radians(mDirPitch));
-  direction = glm::normalize(direction);
-
-  mRot += direction - mLastDir;
-  mLastDir = direction;
+  mRotation.x = glm::sin(mYaw) * glm::cos(mPitch);
+  mRotation.y = glm::cos(mYaw) * glm::cos(mPitch);
+  mRotation.z = glm::sin(mPitch);
+  mRotation = glm::normalize(mRotation);
 }

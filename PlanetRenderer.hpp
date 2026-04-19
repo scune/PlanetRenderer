@@ -48,7 +48,7 @@ private:
   std::array<VkShaderEXT, 2> mShader{VK_NULL_HANDLE};
   VkPipelineLayout mLayout{VK_NULL_HANDLE};
 
-  // FreeFlyCam mFreeFlyCam{};
+  // FreeFlyCam mPlayerCam{};
   PlayerCam mPlayerCam{};
   CbtBisection mCbtBisection{};
 
