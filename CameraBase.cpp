@@ -7,8 +7,13 @@ void CameraBase::SetRot(const glm::vec3& rot)
   assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
          "Parameter \"rot\" needs to be normalized!");
 
-  mYaw = glm::atan(rot.x, rot.y);
+  COUT("Before Yaw: " << mYaw);
+  COUT("Before Pitch: " << mPitch);
   mPitch = glm::asin(rot.z);
+  mYaw = glm::asin(rot.x / glm::cos(mPitch));
+  // mYaw = glm::atan(rot.x, rot.y);
+  COUT("After Yaw: " << mYaw);
+  COUT("After Pitch: " << mPitch);
   UpdateLocalRotation();
 }
 

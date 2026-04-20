@@ -3,29 +3,27 @@
 #include "Libs.hpp"
 
 #include "Buffers.hpp"
+#include "CameraBase.hpp"
 #include "CbtGpuBisection.hpp"
 #include "DescriptorSet.hpp"
-#include "FreeFlyCam.hpp"
 #include "Images.hpp"
-#include "PlayerCam.hpp"
 
 class PlanetRenderer
 {
 public:
   PlanetRenderer() = default;
+  ~PlanetRenderer() = default;
 
   PlanetRenderer(PlanetRenderer&&) = delete;
   PlanetRenderer(const PlanetRenderer&) = delete;
 
   void Init();
-  void Destroy() noexcept;
+  void Destroy();
 
   void Update();
 
-  void DrawCompute(VkCommandBuffer cmdBuffer,
-                   uint32_t swapchainImgIdx) noexcept;
-  void DrawGraphics(VkCommandBuffer cmdBuffer,
-                    uint32_t swapchainImgIdx) noexcept;
+  void DrawCompute(VkCommandBuffer cmdBuffer, uint32_t swapchainImgIdx);
+  void DrawGraphics(VkCommandBuffer cmdBuffer, uint32_t swapchainImgIdx);
 
 private:
   std::vector<glm::vec4> mVertices;
@@ -48,8 +46,10 @@ private:
   std::array<VkShaderEXT, 2> mShader{VK_NULL_HANDLE};
   VkPipelineLayout mLayout{VK_NULL_HANDLE};
 
-  // FreeFlyCam mPlayerCam{};
-  PlayerCam mPlayerCam{};
+  CameraBase* mCam{nullptr};
+  bool mbPlayerCam{true};
+  bool mbCamSwitchButtonPressed;
+
   CbtBisection mCbtBisection{};
 
   struct SceneData_t

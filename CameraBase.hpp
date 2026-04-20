@@ -18,6 +18,7 @@ public:
   const glm::mat4& GetPrevMatrix() const { return mMat[!mMatIdx]; }
   const glm::vec3& GetPos() const { return mPos; }
   virtual glm::vec3 GetRot() const = 0;
+  float GetSpeed() const { return mSpeed; }
 
 protected:
   void ProcessInput();

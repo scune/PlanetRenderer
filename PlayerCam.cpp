@@ -1,6 +1,9 @@
 #include "PlayerCam.hpp"
 
-glm::vec3 PlayerCam::GetRot() const { return mPlanetRotation * mLocalForward; }
+glm::vec3 PlayerCam::GetRot() const
+{
+  return glm::normalize(mPlanetRotation * mLocalForward);
+}
 
 void PlayerCam::UpdateLocalBasis()
 {
@@ -14,9 +17,11 @@ glm::mat4 PlayerCam::CalculateViewMatrix()
   mUp = glm::normalize(mPos);
 
   glm::quat upAlignment = glm::rotation(oldPlanetUp, mUp);
-
-  mSurfaceBasis = upAlignment * mSurfaceBasis;
-  mSurfaceBasis = glm::normalize(mSurfaceBasis);
+  if (upAlignment != glm::quat_identity<float, glm::packed_highp>())
+  {
+    mSurfaceBasis = upAlignment * mSurfaceBasis;
+    mSurfaceBasis = glm::normalize(mSurfaceBasis);
+  }
 
   mPlanetRotation = mSurfaceBasis * mLocalRotation;
 

@@ -3,10 +3,12 @@
 #include "Buffers.hpp"
 #include "Context.hpp"
 #include "DescriptorBuilder.hpp"
+#include "FreeFlyCam.hpp"
 #include "GetVkFunc.hpp"
 #include "Images.hpp"
 #include "Libs.hpp"
 #include "MeshGen.hpp"
+#include "PlayerCam.hpp"
 #include "ResultCheck.hpp"
 #include "Shader.hpp"
 #include "Shaders/PlanetVertex.glsl.hpp"
@@ -29,9 +31,10 @@ void PlanetRenderer::Init()
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
-  mPlayerCam.SetPos({11200.f, 0.f, 0.f});
-  mPlayerCam.SetRot({1.f, 0.f, 0.f});
-  mPlayerCam.SetSpeed(200.f);
+  mCam = new PlayerCam();
+  mCam->SetPos({11200.f, 0.f, 0.f});
+  mCam->SetRot({1.f, 0.f, 0.f});
+  mCam->SetSpeed(200.f);
 }
 
 void PlanetRenderer::CreateBuffers()
@@ -269,11 +272,11 @@ void PlanetRenderer::Update()
 {
   const float playerHeight = 10.f;
 
-  const glm::vec3 normPos = glm::normalize(mPlayerCam.GetPos());
+  const glm::vec3 normPos = glm::normalize(mCam->GetPos());
 
   // Player pos
   glm::vec3 g = -normPos * 9.f * (float)gContext.GetDeltaTime();
-  glm::vec3 pos = mPlayerCam.GetPos() + g;
+  glm::vec3 pos = mCam->GetPos() + g;
   float distToCenter = glm::length(pos) - playerHeight;
 
   uint32_t planeID;
@@ -286,35 +289,49 @@ void PlanetRenderer::Update()
   displacement += 10000.f;
   pos += normPos * std::max(0.f, displacement - distToCenter);
 
-  mPlayerCam.SetPos(pos);
+  mCam->SetPos(pos);
 
-  mPlayerCam.Update();
+  mCam->Update();
 
-  // COUT_VEC3(mPlayerCam.GetPos());
-  COUT_VEC3(mPlayerCam.GetRot());
+  // COUT_VEC3(mCam->GetPos());
+  // COUT_VEC3(mCam->GetRot());
 
-  static bool pressed{false};
-  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_T) == GLFW_PRESS && !pressed)
+  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_T) == GLFW_PRESS &&
+      !mbCamSwitchButtonPressed)
   {
+    COUT("--- Switch ---");
+    glm::vec3 pos = mCam->GetPos();
+    glm::vec3 rot = mCam->GetRot();
+    float speed = mCam->GetSpeed();
 
-    pressed = true;
+    delete mCam;
+    if (mbPlayerCam)
+      mCam = new FreeFlyCam();
+    else
+      mCam = new PlayerCam();
+
+    mCam->SetPos(pos);
+    mCam->SetRot(rot);
+    mCam->SetSpeed(speed);
+    mbPlayerCam = !mbPlayerCam;
+
+    mbCamSwitchButtonPressed = true;
   }
   else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_T) == GLFW_RELEASE)
   {
-    pressed = false;
+    mbCamSwitchButtonPressed = false;
   }
 
   SceneData_t data{};
-  data.camMatrix = mPlayerCam.GetMatrix();
+  data.camMatrix = mCam->GetMatrix();
   IfNThrow(BufferCopyToHost(mSceneData, &data),
            "Failed to update scene data buffer!");
 
-  mCbtBisection.Update(mPlayerCam.GetPos(), mPlayerCam.GetMatrix(),
-                       mPlayerCam.GetRot());
+  mCbtBisection.Update(mCam->GetPos(), mCam->GetMatrix(), mCam->GetRot());
 }
 
 void PlanetRenderer::DrawCompute(VkCommandBuffer cmdBuffer,
-                                 uint32_t swapchainImgIdx) noexcept
+                                 uint32_t swapchainImgIdx)
 {
   std::array<VkDescriptorSet, 1> descriptorSets{
       gSwapchain.GetDescriptorSet(gSwapchain.GetFrameImgIndex())};
@@ -336,7 +353,7 @@ void PlanetRenderer::DrawCompute(VkCommandBuffer cmdBuffer,
 }
 
 void PlanetRenderer::DrawGraphics(VkCommandBuffer cmdBuffer,
-                                  uint32_t swapchainImgIdx) noexcept
+                                  uint32_t swapchainImgIdx)
 {
   // if (gContext.GetFrameCounter() % 32 == 0)
   {
@@ -475,10 +492,13 @@ void PlanetRenderer::DrawGraphics(VkCommandBuffer cmdBuffer,
   gSwapchain.TransitionAfterGraphics(cmdBuffer, swapchainImgIdx);
 };
 
-void PlanetRenderer::Destroy() noexcept
+void PlanetRenderer::Destroy()
 {
   if (gContext.GetDevice() == VK_NULL_HANDLE)
     return;
+
+  if (mCam)
+    delete mCam;
 
   mCbtBisection.Destroy();
 
