@@ -23,8 +23,8 @@ void PlayerCam::SetRot(const glm::vec3& rot)
   COUT("Forward should be:");
   COUT_VEC3(localRot);
 
+  mYaw = glm::atan(localRot.y, localRot.x);
   mPitch = glm::asin(localRot.z);
-  mYaw = glm::atan(localRot.x, localRot.y);
   COUT("After Yaw: " << mYaw);
   COUT("After Pitch: " << mPitch);
 
@@ -33,6 +33,10 @@ void PlayerCam::SetRot(const glm::vec3& rot)
   COUT("Forward is now:");
   localRot = mLocalRotation * mLocalForward;
   COUT_VEC3(localRot);
+  float yaw = glm::atan(localRot.y, localRot.x);
+  float pitch = glm::asin(localRot.z);
+  COUT("New Yaw: " << yaw);
+  COUT("New Pitch: " << pitch);
 }
 
 glm::vec3 PlayerCam::GetRot() const
@@ -69,7 +73,7 @@ void PlayerCam::UpdateLocalRotation()
   mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
   mPitch = glm::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
 
-  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, -1.f));
+  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
   glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
   mLocalRotation = yawQ * pitchQ;
 }

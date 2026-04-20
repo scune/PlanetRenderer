@@ -142,8 +142,8 @@ void CameraBase::GetMouseOffset(float& xOffset, float& yOffset)
 void CameraBase::Rotate(float yawOffset, float pitchOffset)
 {
   float deltaTime = (float)gContext.GetDeltaTime();
-  mYaw += glm::radians(yawOffset * deltaTime);
-  mPitch += glm::radians(pitchOffset * deltaTime);
+  mYaw -= glm::radians(yawOffset * deltaTime);
+  mPitch -= glm::radians(pitchOffset * deltaTime);
 
   UpdateLocalRotation();
 }

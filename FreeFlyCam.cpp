@@ -5,11 +5,13 @@ void FreeFlyCam::SetRot(const glm::vec3& rot)
   assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
          "Parameter \"rot\" needs to be normalized!");
 
-  mPitch = glm::asin(rot.z);
-  mYaw = glm::atan(rot.x, rot.y);
+  mYaw = glm::atan(rot.y, rot.x);
+  mPitch = glm::acos(rot.z);
   COUT("After Yaw: " << mYaw);
   COUT("After Pitch: " << mPitch);
+  COUT_VEC3(rot);
   UpdateLocalRotation();
+  COUT_VEC3(mRotation);
 }
 
 void FreeFlyCam::UpdateLocalBasis()
@@ -27,10 +29,10 @@ void FreeFlyCam::UpdateLocalRotation()
 {
   mYaw -= (mYaw >= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
   mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mPitch = glm::clamp(mPitch, glm::radians(-89.f), glm::radians(89.f));
+  mPitch = glm::clamp(mPitch, glm::radians(1.f), glm::radians(179.f));
 
-  mRotation.x = glm::sin(mYaw) * glm::cos(mPitch);
-  mRotation.y = glm::cos(mYaw) * glm::cos(mPitch);
-  mRotation.z = glm::sin(mPitch);
+  mRotation.x = glm::cos(mYaw) * glm::sin(mPitch);
+  mRotation.y = glm::sin(mYaw) * glm::sin(mPitch);
+  mRotation.z = glm::cos(mPitch);
   mRotation = glm::normalize(mRotation);
 }

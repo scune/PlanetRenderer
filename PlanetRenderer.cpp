@@ -33,7 +33,7 @@ void PlanetRenderer::Init()
 
   mCam = new PlayerCam();
   mCam->SetPos({11200.f, 0.f, 0.f});
-  mCam->SetRot({-1.f, 0.f, 0.f});
+  mCam->SetRot({0.f, 0.f, 1.f});
   mCam->SetSpeed(200.f);
 }
 
