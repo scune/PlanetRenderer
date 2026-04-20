@@ -11,7 +11,7 @@ public:
   void Update();
 
   void SetPos(const glm::vec3& pos) { mPos = pos; }
-  void SetRot(const glm::vec3& rot);
+  virtual void SetRot(const glm::vec3& rot) = 0;
   void SetSpeed(float speed) { mSpeed = speed; }
 
   const glm::mat4& GetMatrix() const { return mMat[mMatIdx]; }

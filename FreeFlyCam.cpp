@@ -1,5 +1,17 @@
 #include "FreeFlyCam.hpp"
 
+void FreeFlyCam::SetRot(const glm::vec3& rot)
+{
+  assert(glm::all(glm::epsilonEqual(rot, glm::normalize(rot), 1e-4f)) &&
+         "Parameter \"rot\" needs to be normalized!");
+
+  mPitch = glm::asin(rot.z);
+  mYaw = glm::atan(rot.x, rot.y);
+  COUT("After Yaw: " << mYaw);
+  COUT("After Pitch: " << mPitch);
+  UpdateLocalRotation();
+}
+
 void FreeFlyCam::UpdateLocalBasis()
 {
   mForward = mRotation;
