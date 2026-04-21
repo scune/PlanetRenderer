@@ -2,6 +2,8 @@
 
 #include "Libs.hpp"
 
+#include <glm/gtx/quaternion.hpp>
+
 class CameraBase
 {
 public:
@@ -33,18 +35,22 @@ protected:
   const float mFar{20000.f};
 
   virtual void UpdateLocalBasis() = 0;
+  const glm::vec3 mLocalForward{1.f, 0.f, 0.f};
+  const glm::vec3 mLocalRight{0.f, -1.f, 0.f};
+
   glm::vec3 mForward;
   glm::vec3 mRight;
   glm::vec3 mUp{0.f, 0.f, 1.f};
 
   glm::vec3 mPos;
+  glm::quat mLocalRot{glm::quat_identity<float, glm::defaultp>()};
   float mSpeed{1.f};
 
   void KeyboardLookAround();
   void MouseEvents();
   void GetMouseOffset(float& xOffset, float& yOffset);
   void Rotate(float yawOffset, float pitchOffset);
-  virtual void UpdateLocalRotation() = 0;
+  void UpdateLocalRotation();
   double mLastX;
   double mLastY;
   float mSensitivity{30.f};

@@ -40,18 +40,7 @@ glm::mat4 PlayerCam::CalculateViewMatrix()
     mSurfaceBasis = glm::normalize(mSurfaceBasis);
   }
 
-  mPlanetRotation = mSurfaceBasis * mLocalRotation;
+  mPlanetRotation = mSurfaceBasis * mLocalRot;
 
   return glm::lookAt(mPos, mPos + mPlanetRotation * mLocalForward, mUp);
-}
-
-void PlayerCam::UpdateLocalRotation()
-{
-  mYaw -= (mYaw >= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mPitch = glm::clamp(mPitch, glm::radians(-89.f), glm::radians(89.f));
-
-  glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
-  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
-  mLocalRotation = yawQ * pitchQ;
 }
