@@ -9,8 +9,12 @@ void FreeFlyCam::SetRot(const glm::vec3& rot)
   mPitch = glm::acos(rot.z);
   COUT("After Yaw: " << mYaw);
   COUT("After Pitch: " << mPitch);
+
+  COUT("Rot in:");
   COUT_VEC3(rot);
   UpdateLocalRotation();
+
+  COUT("Rot now:");
   COUT_VEC3(mRotation);
 }
 
