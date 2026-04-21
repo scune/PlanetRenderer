@@ -9,23 +9,18 @@ void PlayerCam::SetRot(const glm::vec3& rot)
   glm::vec3 newPlanetUp = glm::normalize(mPos);
   glm::quat upAlignment = glm::rotation(newPlanetUp, oldPlanetUp);
 
-  mLocalRotation = upAlignment * rot;
-
-  glm::vec3 localRot = mLocalRotation * mLocalForward;
+  glm::vec3 localRot = upAlignment * rot;
   mYaw = glm::atan(localRot.y, localRot.x);
   mPitch = glm::acos(localRot.z);
+  mPitch -= glm::radians(89.f) * glm::floor(mPitch / glm::radians(89.f));
 
   UpdateLocalRotation();
-
-  COUT("Rot should be:");
-  COUT_VEC3(rot);
-  COUT("Rot is now:");
-  upAlignment = glm::rotation(oldPlanetUp, newPlanetUp);
-  localRot = upAlignment * mLocalRotation * mLocalForward;
-  COUT_VEC3(localRot);
 }
 
-glm::vec3 PlayerCam::GetRot() const { return mPlanetRotation * mLocalForward; }
+glm::vec3 PlayerCam::GetRot() const
+{
+  return glm::normalize(mPlanetRotation * mLocalForward);
+}
 
 void PlayerCam::UpdateLocalBasis()
 {
@@ -54,9 +49,9 @@ void PlayerCam::UpdateLocalRotation()
 {
   mYaw -= (mYaw >= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
   mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mPitch = glm::clamp(mPitch, glm::radians(-89.9f), glm::radians(89.9f));
+  mPitch = glm::clamp(mPitch, glm::radians(-89.f), glm::radians(89.f));
 
   glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
-  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(1.f, 0.f, 0.f));
+  glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));
   mLocalRotation = yawQ * pitchQ;
 }
