@@ -12,7 +12,7 @@ void PlayerCam::SetRot(const glm::vec3& rot)
   glm::vec3 localRot = upAlignment * rot;
   mYaw = glm::atan(localRot.y, localRot.x);
   mPitch = glm::acos(localRot.z);
-  mPitch -= glm::radians(89.f) * glm::floor(mPitch / glm::radians(89.f));
+  mPitch -= mMaxPitch * glm::floor(mPitch / mMaxPitch);
 
   UpdateLocalRotation();
 }

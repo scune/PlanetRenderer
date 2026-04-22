@@ -88,21 +88,22 @@ void CameraBase::CalculateProjMatrix(float aspectRatio)
 void CameraBase::KeyboardLookAround()
 {
   float yawOffset = 0.f, pitchOffset = 0.f;
+  const float keyboardSens = mSensitivity * 4.f;
   if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_I) == GLFW_PRESS)
   {
-    pitchOffset += mSensitivity;
+    pitchOffset += keyboardSens;
   }
   else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_K) == GLFW_PRESS)
   {
-    pitchOffset -= mSensitivity;
+    pitchOffset -= keyboardSens;
   }
   if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_J) == GLFW_PRESS)
   {
-    yawOffset -= mSensitivity;
+    yawOffset -= keyboardSens;
   }
   else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_L) == GLFW_PRESS)
   {
-    yawOffset += mSensitivity;
+    yawOffset += keyboardSens;
   }
   if (yawOffset != 0.f || pitchOffset != 0.f)
     Rotate(yawOffset, pitchOffset);
@@ -150,9 +151,9 @@ void CameraBase::Rotate(float yawOffset, float pitchOffset)
 
 void CameraBase::UpdateLocalRotation()
 {
-  mYaw -= (mYaw >= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mYaw += (mYaw <= glm::two_pi<float>()) ? glm::two_pi<float>() : 0.f;
-  mPitch = glm::clamp(mPitch, glm::radians(-89.f), glm::radians(89.f));
+  mYaw -= (mYaw >= mYawModulo) ? mYawModulo : 0.f;
+  mYaw += (mYaw <= mYawModulo) ? mYawModulo : 0.f;
+  mPitch = glm::clamp(mPitch, -mMaxPitch, mMaxPitch);
 
   glm::quat yawQ = glm::angleAxis(mYaw, glm::vec3(0.f, 0.f, 1.f));
   glm::quat pitchQ = glm::angleAxis(mPitch, glm::vec3(0.f, 1.f, 0.f));

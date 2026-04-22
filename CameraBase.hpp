@@ -56,6 +56,8 @@ protected:
   float mSensitivity{30.f};
   float mYaw;
   float mPitch;
+  const float mYawModulo{glm::two_pi<float>()};
+  const float mMaxPitch{glm::radians(89.f)};
 
   bool mFirstClick;
   VkExtent2D mLastExtent;

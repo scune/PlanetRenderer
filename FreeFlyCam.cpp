@@ -7,7 +7,7 @@ void FreeFlyCam::SetRot(const glm::vec3& rot)
 
   mYaw = glm::atan(rot.y, rot.x);
   mPitch = glm::acos(rot.z);
-  mPitch -= glm::radians(89.f) * glm::floor(mPitch / glm::radians(89.f));
+  mPitch -= mMaxPitch * glm::floor(mPitch / mMaxPitch);
 
   UpdateLocalRotation();
 }
