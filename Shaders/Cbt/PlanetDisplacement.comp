@@ -389,11 +389,11 @@ float TerrainColor(vec3 pos, vec3 normal)
     textBlendAlpha = 1.f - min(1.f, (slope - slopeRockCutoff)) / (slopeRockBlendCutoff - slopeRockCutoff);
   }
 
-  vec3 gridPos = pos.xyz / 150.f;
-  vec3 offset = Hash3D(uvec3(gridPos + 200.f));
+  vec3 gridPos = pos.xyz / 10.f; //
+  vec3 offset = Hash3D(uvec3(gridPos + 10000.f)); //
   float gridBoundDist = GridBoundingDist(gridPos, normal);
 
-  float scaling = 10.f;
+  float scaling = 2.f; //
   float scaling2 = 2.f;
   vec3 worldPos = pos.xyz / scaling;
 
@@ -456,7 +456,7 @@ void main()
 
   v *= ad.x + planetScale;
 
-  v += normalize(v) * 2.f * TerrainColor(v, normal.xyz);
+  v += normalize(v) * 0.75f * TerrainColor(v, normal.xyz);
 
   uint delta = 3u - gl_SubgroupInvocationID % 4;
   float parent = subgroupShuffleDown(v, delta)[vIdx % 3];

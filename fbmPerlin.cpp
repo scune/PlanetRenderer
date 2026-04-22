@@ -51,7 +51,7 @@ glm::uvec2 Pcg2D(glm::uvec2 v)
 glm::vec2 Hash2D(glm::uvec2 u)
 {
   u = Pcg2D(u);
-  return glm::vec2(u >> 8u) * 5.9604644775390625e-08f * 2.0f - 1.0f;
+  return glm::vec2(u >> 8u) * 5.9604644775390625e-08f * 2.f - 1.f;
 }
 
 glm::uvec3 Pcg3D(glm::uvec3 v)
@@ -70,7 +70,7 @@ glm::uvec3 Pcg3D(glm::uvec3 v)
 glm::vec3 Hash3D(glm::uvec3 u)
 {
   u = Pcg3D(u);
-  return glm::vec3(u >> 8u) * 5.9604644775390625e-08f * 2.0f - 1.0f;
+  return glm::vec3(u >> 8u) * 5.9604644775390625e-08f * 2.f - 1.f;
 }
 
 glm::uvec3 Extract(const uint32_t extent3, const int offset)
@@ -140,16 +140,15 @@ glm::vec3 PerlinNoise(const glm::uvec2 uv, const glm::vec2 uvFract,
     gd = HashProjectToFace(gd3, planeID);
   }
 
-  float va = glm::dot(ga, uvFract - glm::vec2(0.0f, 0.0f));
-  float vb = glm::dot(gb, uvFract - glm::vec2(1.0f, 0.0f));
-  float vc = glm::dot(gc, uvFract - glm::vec2(0.0f, 1.0f));
-  float vd = glm::dot(gd, uvFract - glm::vec2(1.0f, 1.0f));
+  float va = glm::dot(ga, uvFract - glm::vec2(0.f, 0.f));
+  float vb = glm::dot(gb, uvFract - glm::vec2(1.f, 0.f));
+  float vc = glm::dot(gc, uvFract - glm::vec2(0.f, 1.f));
+  float vd = glm::dot(gd, uvFract - glm::vec2(1.f, 1.f));
 
-  glm::vec2 u = uvFract * uvFract * uvFract *
-                (uvFract * (uvFract * 6.0f - 15.0f) + 10.0f);
+  glm::vec2 u =
+      uvFract * uvFract * uvFract * (uvFract * (uvFract * 6.f - 15.f) + 10.f);
 
-  glm::vec2 du =
-      30.0f * uvFract * uvFract * (uvFract * (uvFract - 2.0f) + 1.0f);
+  glm::vec2 du = 30.f * uvFract * uvFract * (uvFract * (uvFract - 2.f) + 1.f);
 
   float res_value =
       va + u.x * (vb - va) + u.y * (vc - va) + u.x * u.y * (va - vb - vc + vd);
@@ -174,9 +173,9 @@ float FbmPerlin(glm::vec2 p, glm::vec3 cubePosF, const uint32_t planeID,
   glm::vec2 uvFract = glm::fract(p);
   glm::uvec2 uv = glm::uvec2(p);
 
-  glm::vec3 an = glm::vec3(0.0f);
-  float b = 1.0f;
-  glm::vec2 d = glm::vec2(0.0f);
+  glm::vec3 an = glm::vec3(0.f);
+  float b = 1.f;
+  glm::vec2 d = glm::vec2(0.f);
 
   cubePosF *= fbmFrequency;
   glm::vec3 cubeFract = glm::fract(cubePosF);
@@ -188,25 +187,25 @@ float FbmPerlin(glm::vec2 p, glm::vec3 cubePosF, const uint32_t planeID,
 
     glm::vec2 deriv = glm::vec2(n.y, n.z) * amplitudePercent;
 
-    float erosion = 1.0f + glm::dot(d, d);
+    float erosion = 1.f + glm::dot(d, d);
     an.y += deriv.x / erosion;
     an.z += deriv.y / erosion;
 
     d += deriv;
 
-    float erosion2 = 1.0f + glm::dot(d, d);
+    float erosion2 = 1.f + glm::dot(d, d);
     an.x += b * n.x / erosion2;
 
     b *= 0.5f;
     extent <<= 1;
 
     uv <<= 1;
-    uvFract *= 2.0f;
+    uvFract *= 2.f;
     uv += glm::uvec2(uvFract);
     uvFract = glm::fract(uvFract);
 
     cubePos <<= 1;
-    cubeFract *= 2.0f;
+    cubeFract *= 2.f;
     cubePos += glm::uvec3(cubeFract);
     cubeFract = glm::fract(cubeFract);
   }

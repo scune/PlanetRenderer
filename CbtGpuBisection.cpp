@@ -85,11 +85,11 @@ void CbtBisection::RootBisectorVertices(
 }
 
 void CbtBisection::InitConstPushConstantData(
-    uint32_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
+    uint8_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
     float scale) noexcept
 {
   mGenCmdsPushConstants.maxSubdivision =
-      std::min<uint32_t>(CBT_DEPTH, maxSubdivision);
+      std::min<uint32_t>(CBT_DEPTH, (uint32_t)maxSubdivision);
   mGenCmdsPushConstants.minDepth = MinDepth(halfedges.size());
   mGenCmdsPushConstants.baseBisectorIndex = 1 << mGenCmdsPushConstants.minDepth;
   mGenCmdsPushConstants.pixelCount =
@@ -120,7 +120,7 @@ CreateRootBisectors(InitializerList<Cbt::Halfedge> halfedges,
   return bisectors;
 }
 
-void CbtBisection::Init(uint32_t maxSubdivision,
+void CbtBisection::Init(uint8_t maxSubdivision,
                         InitializerList<Cbt::Halfedge> halfedges,
                         const Buffer& vertexBuffer, float scale,
                         InitializerList<Image> textures)

@@ -42,7 +42,7 @@ void CameraBase::ProcessInput()
     speed *= 10.f;
     if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
     {
-      speed *= 10.f;
+      speed *= 20.f;
     }
   }
   else if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)

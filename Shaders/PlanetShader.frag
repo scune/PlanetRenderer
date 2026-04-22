@@ -147,11 +147,11 @@ vec3 TerrainColor()
     textBlendAlpha = 1.f - min(1.f, (slope - slopeRockCutoff)) / (slopeRockBlendCutoff - slopeRockCutoff);
   }
 
-  vec3 gridPos = inPos.xyz / 150.f;
-  vec3 offset = Hash3D(uvec3(gridPos + 200.f));
+  vec3 gridPos = inPos.xyz / 10.f; //
+  vec3 offset = Hash3D(uvec3(gridPos + 10000.f)); //
   float gridBoundDist = GridBoundingDist(gridPos);
 
-  float scaling = 10.f;
+  float scaling = 2.f; //
   float scaling2 = 2.f;
   vec3 worldPos = inPos.xyz / scaling;
 

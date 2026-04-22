@@ -27,14 +27,14 @@ void PlanetRenderer::Init()
   CreateGraphicsShader();
   // CreateComputeShader();
 
-  uint32_t maxSubdivision = 20;
+  uint32_t maxSubdivision = 25;
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
   mCam = new PlayerCam();
   mCam->SetPos({11200.f, 0.f, 0.f});
-  mCam->SetRot({0.f, 0.f, 1.f});
-  mCam->SetSpeed(200.f);
+  mCam->SetRot({-1.f, 0.f, 0.f});
+  mCam->SetSpeed(2.f);
 }
 
 void PlanetRenderer::CreateBuffers()
@@ -270,13 +270,17 @@ void PlanetRenderer::CreateGraphicsShader()
 
 void PlanetRenderer::Update()
 {
-  const float playerHeight = 10.f;
+  const float playerHeight = 2.f;
 
   const glm::vec3 normPos = glm::normalize(mCam->GetPos());
 
   // Player pos
-  glm::vec3 g = -normPos * 9.f * (float)gContext.GetDeltaTime();
-  glm::vec3 pos = mCam->GetPos() + g;
+  glm::vec3 pos{mCam->GetPos()};
+  if (mbPlayerCam)
+  {
+    glm::vec3 g = -normPos * 9.f * (float)gContext.GetDeltaTime();
+    pos += g;
+  }
   float distToCenter = glm::length(pos) - playerHeight;
 
   uint32_t planeID;
@@ -422,8 +426,8 @@ void PlanetRenderer::DrawGraphics(VkCommandBuffer cmdBuffer,
   // vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
   vkCmdSetDepthBiasEnable(cmdBuffer, VK_FALSE);
 
-  // vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_BACK_BIT);
-  vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_NONE);
+  vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_BACK_BIT);
+  // vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_NONE);
   vkCmdSetFrontFace(cmdBuffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 
   vkCmdSetLineWidth(cmdBuffer, 1.f);

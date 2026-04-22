@@ -13,7 +13,7 @@ class CbtBisection
 public:
   CbtBisection() = default;
 
-  void Init(uint32_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
+  void Init(uint8_t maxSubdivision, InitializerList<Cbt::Halfedge> halfedges,
             const Buffer& vertexBuffer, float scale,
             InitializerList<Image> textures);
   void Destroy();
@@ -38,7 +38,7 @@ private:
                             InitializerList<glm::vec4> rootVertices,
                             glm::vec3* outVecs) const noexcept;
 
-  void InitConstPushConstantData(uint32_t maxSubdivision,
+  void InitConstPushConstantData(uint8_t maxSubdivision,
                                  InitializerList<Cbt::Halfedge> halfedges,
                                  float scale) noexcept;
 
