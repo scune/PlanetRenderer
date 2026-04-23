@@ -27,7 +27,7 @@ void PlanetRenderer::Init()
   CreateGraphicsShader();
   // CreateComputeShader();
 
-  uint32_t maxSubdivision = 25;
+  uint8_t maxSubdivision = ~uint8_t(0);
   mCbtBisection.Init(maxSubdivision, halfedges, mVertexBuffer, 10000.f,
                      {mTextures, (uint32_t)std::size(mTextures)});
 
@@ -422,8 +422,8 @@ void PlanetRenderer::DrawGraphics(VkCommandBuffer cmdBuffer,
 
   vkCmdSetPrimitiveRestartEnable(cmdBuffer, VK_FALSE);
   vkCmdSetPrimitiveTopology(cmdBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-  vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
-  // vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
+  // vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_FILL);
+  vkCmdSetPolygonModeEXT(cmdBuffer, VK_POLYGON_MODE_LINE);
   vkCmdSetDepthBiasEnable(cmdBuffer, VK_FALSE);
 
   vkCmdSetCullMode(cmdBuffer, VK_CULL_MODE_BACK_BIT);

@@ -5,6 +5,7 @@ Makefile
 /CMakeFiles
 CMakeCache.txt
 /.cache
+*.spv
 *.spv.d
 TAGS
 # Ignore unsaved emacs buffers
