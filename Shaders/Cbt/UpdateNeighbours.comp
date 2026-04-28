@@ -32,6 +32,11 @@ layout(binding = 6) readonly buffer BisectorCommands
   uint bisectorCommands[BISECTOR_MAX_COUNT];
 };
 
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec4 debugData[];
+};
+
 
 
 void RefinePointers(const uint id, const uint cmd)
@@ -334,7 +339,7 @@ void main()
   const uint cmd = bisectorCommands[bisectorID];
   if (cmd == BISECTOR_CMD_KEEP)
     return;
-
+  
   if (AnySplit(cmd))
   {
     RefinePointers(bisectorID, cmd);

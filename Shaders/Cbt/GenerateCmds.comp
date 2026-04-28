@@ -37,6 +37,11 @@ layout(binding = 6) buffer BisectorCommands
   uint bisectorCommands[BISECTOR_MAX_COUNT];
 };
 
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec4 debugData[];
+};
+
 layout(push_constant, scalar) uniform PushConstant
 {
   layout(offset = 4)
@@ -235,6 +240,37 @@ void main()
 
   const int maxMem = int(BISECTOR_MAX_COUNT - cbt.tree[1]);
   const uint depth = BisectorDepth(b.index, minDepth);
+
+  // Neighbour test
+  {
+    bool bRight = bool(b.index & 1ul);
+
+    bool bRightN0 = !bRight;
+    bool bRightN1 = !bRight;
+    bool bRightN2 = !bRight;
+    if (b.next != BISECTOR_NULLPTR)
+    {
+      if (BisectorDepth(bisectors[b.next].index, minDepth) == depth)
+        bRightN0 = bool(bisectors[b.next].index & 1ul);
+    }
+    if (b.prev != BISECTOR_NULLPTR)
+    {
+      if (BisectorDepth(bisectors[b.prev].index, minDepth) == depth)
+        bRightN1 = bool(bisectors[b.prev].index & 1ul);
+    }
+    if (b.twin != BISECTOR_NULLPTR)
+    {
+      if (BisectorDepth(bisectors[b.twin].index, minDepth) == depth)
+        bRightN2 = bool(bisectors[b.twin].index & 1ul);
+    }
+
+    if (bRightN0 == bRight || bRightN1 == bRight ||
+        bRightN2 == bRight) // Not good
+      atomicAdd(debugData[0].x, 1);
+    else // Good
+      atomicAdd(debugData[0].y, 1);
+  }
+  //
 
   if (((cmd & BISECTOR_CMD_SPLIT) != 0) && (depth < maxSubdivision))
   {
