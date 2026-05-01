@@ -56,6 +56,7 @@ private:
   Buffer mVertexCache{};
   Buffer mGlobalUpdate{};
   Buffer mDebugBuffer{};
+  const uint32_t mDebugBufferSize{1000000};
 
   void CreateDescriptors(const Buffer& vertexBuffer,
                          InitializerList<Image> textures);

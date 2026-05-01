@@ -219,7 +219,7 @@ void CbtBisection::CreateBuffers(const Cbt::Halfedge* halfedges,
   IfNThrow(CreateBuffer(mGlobalUpdate),
            "Failed to create global update buffer!");
 
-  mDebugBuffer.size = sizeof(glm::ivec4) * 10000;
+  mDebugBuffer.size = sizeof(glm::ivec4) * mDebugBufferSize;
   mDebugBuffer.usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
   mDebugBuffer.memProperties = memProps;
   IfNThrow(CreateBuffer(mDebugBuffer), "Failed to create debug buffer!");
@@ -598,7 +598,7 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
   }
 
   // Debug:
-  std::vector<glm::ivec4> debugData(10000);
+  std::vector<glm::ivec4> debugData(mDebugBufferSize);
   BufferCopyFromHost(mDebugBuffer, debugData.data(), VecByteSize(debugData));
   uint32_t maxIdx = 0;
   for (uint32_t i = 0; i < debugData.size(); i++)

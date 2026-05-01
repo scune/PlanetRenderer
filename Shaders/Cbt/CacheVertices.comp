@@ -57,7 +57,7 @@ layout(binding = 8) uniform GlobalUpdate
 
 layout(binding = 9) buffer DebugBuffer
 {
-  ivec2 debugData[];
+  ivec4 debugData[];
 };
 
 layout(push_constant, scalar) uniform PushConstant
@@ -134,6 +134,30 @@ mat3 BisectorVertices(const uint64_t bisectorIndex, const uint bisectorDepth, ou
   return currVerts;
 }
 
+uvec3 Pcg3D(uvec3 v)
+{
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  return v;
+}
+
+uint Seed(uvec3 p)
+{
+  return 19u * p.x + 47u * p.y + 101u * p.z + 131u;
+}
+
+uint Hash3D(vec3 v)
+{
+  uvec3 u = Pcg3D(uvec3(v + 1.f));
+  return Seed(u);
+}
+
 void main()
 {
   if (gl_GlobalInvocationID.x == 0)
@@ -159,6 +183,10 @@ void main()
   v[2] = normalize(v[2]);
   parentVertex = normalize(parentVertex);
   const vec3 n = normalize(v[0] + v[1] + v[2]);
+
+  uint hash = Hash3D(v[0]);
+  hash %= debugData.length();
+  debugData[hash] = ivec4(v[0] * 100.f, hash);
 
   uint vertexOffset = gl_GlobalInvocationID.x * 3;
   [[unroll]]
