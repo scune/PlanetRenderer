@@ -7,6 +7,6 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json
 
 SCRIPT_NAME=$(basename "$0")
 echo "$SCRIPT_NAME: Environment set. Launching application..."
-echo "$SCRIPT_NAME: Execute \"./touch /tmp/rgp_capture\" after launch in another console."
+echo "$SCRIPT_NAME: Execute \"touch /tmp/rgp_capture\" in another console after launch."
 
 ./testApp -x11

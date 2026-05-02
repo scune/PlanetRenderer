@@ -16,6 +16,16 @@
 
 layout(local_size_x = 64) in;
 
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) readonly buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
 layout(binding = 7, scalar) buffer OutVertices
 {
   uint vertexCount;

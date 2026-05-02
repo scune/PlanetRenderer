@@ -14,7 +14,7 @@ using namespace glm;
 #define CPP_INLINE
 #endif // __cplusplus
 
-#define CBT_DEPTH 20 // 24
+#define CBT_DEPTH 24
 #define CBT_VIRTUAL_LEVELS 6
 #define CBT_FIRST_REAL_LEVEL (CBT_DEPTH - CBT_VIRTUAL_LEVELS - 1)
 #define CBT_TREE_SIZE (1u << (CBT_DEPTH - CBT_VIRTUAL_LEVELS))

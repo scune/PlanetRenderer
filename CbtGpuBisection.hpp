@@ -31,7 +31,9 @@ public:
 
 private:
   bool mNoUpdate{false};
-  bool mLastFramePressed{false};
+  bool mNoUpdatePressed{false};
+  bool mDebugRead{true};
+  bool mDebugReadPressed{false};
 
   void RootBisectorVertices(uint32_t halfedgeID,
                             InitializerList<Cbt::Halfedge> halfedges,
@@ -56,7 +58,7 @@ private:
   Buffer mVertexCache{};
   Buffer mGlobalUpdate{};
   Buffer mDebugBuffer{};
-  const uint32_t mDebugBufferSize{1000000};
+  const uint32_t mDebugBufferSize{10000};
 
   void CreateDescriptors(const Buffer& vertexBuffer,
                          InitializerList<Image> textures);

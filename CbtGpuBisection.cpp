@@ -2,12 +2,14 @@
 
 #include "Context.hpp"
 #include "DescriptorBuilder.hpp"
+#include "FastPrint.hpp"
 #include "GetVkFunc.hpp"
 #include "ResultCheck.hpp"
 #include "Shader.hpp"
 #include "Shaders/Cbt/Generic.glsl.hpp"
 #include "Shaders/PlanetVertex.glsl.hpp"
 #include "Swapchain.hpp"
+#include <glm/gtx/hash.hpp>
 
 inline uint32_t FastFloorLog2(uint32_t i) noexcept
 {
@@ -576,14 +578,14 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
                           const glm::vec3& lookAt)
 {
   if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_H) == GLFW_PRESS &&
-      !mLastFramePressed)
+      !mNoUpdatePressed)
   {
     mNoUpdate = !mNoUpdate;
-    mLastFramePressed = true;
+    mNoUpdatePressed = true;
   }
   else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_H) == GLFW_RELEASE)
   {
-    mLastFramePressed = false;
+    mNoUpdatePressed = false;
   }
 
   if (!mNoUpdate)
@@ -597,21 +599,41 @@ void CbtBisection::Update(const glm::vec3& camPos, const glm::mat4& camMatrix,
              "Failed to update global update buffer!");
   }
 
-  // Debug:
-  std::vector<glm::ivec4> debugData(mDebugBufferSize);
-  BufferCopyFromHost(mDebugBuffer, debugData.data(), VecByteSize(debugData));
-  uint32_t maxIdx = 0;
-  for (uint32_t i = 0; i < debugData.size(); i++)
+  // Debug
+  if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_F1) == GLFW_PRESS &&
+      !mDebugReadPressed)
   {
-    if (debugData[i] != glm::ivec4(0))
-    {
-      COUT(i << ": " << debugData[i].x << ", " << debugData[i].y << ", "
-             << debugData[i].z << ", " << debugData[i].w);
-      maxIdx = std::max(maxIdx, i + 1);
-    }
+    mDebugRead = !mDebugRead;
+    mDebugReadPressed = true;
   }
-  if (maxIdx != 0)
-    BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec4));
+  else if (glfwGetKey(gContext.GetWindow(), GLFW_KEY_F1) == GLFW_RELEASE)
+  {
+    mDebugReadPressed = false;
+  }
+
+  if (mDebugRead)
+  {
+    std::vector<glm::ivec4> debugData(mDebugBufferSize);
+    BufferCopyFromHost(mDebugBuffer, debugData.data(), VecByteSize(debugData));
+    uint32_t maxIdx = 0;
+    for (uint32_t i = 0; i < debugData.size(); i++)
+    {
+      if (debugData[i] != glm::ivec4(0))
+      {
+        std::string formatStr =
+            std::format("{}: {}, {}, {}, {}\n", i, debugData[i].x,
+                        debugData[i].y, debugData[i].z, debugData[i].w);
+        FastPrint(formatStr);
+        maxIdx = std::max(maxIdx, i + 1);
+      }
+    }
+    if (maxIdx != 0)
+      BufferClearHost(mDebugBuffer, maxIdx * sizeof(glm::ivec4));
+  }
+  else
+  {
+    BufferClearHost(mDebugBuffer);
+  }
 }
 
 void CbtBisection::RecordCmds(VkCommandBuffer cmdBuffer)
