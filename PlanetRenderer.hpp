@@ -31,7 +31,6 @@ private:
 
   void CreateBuffers();
   Buffer mVertexBuffer{};
-  Buffer mIndexBuffer{};
   Buffer mSceneData{};
   Image mTextures[4]{};
   Image mDepthImage{};

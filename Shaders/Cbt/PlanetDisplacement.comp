@@ -28,9 +28,10 @@ layout(binding = 2, scalar) readonly buffer Bisectors
 
 layout(binding = 7, scalar) buffer OutVertices
 {
-  uint vertexCount;
+  uint indexCount;
   uint instanceCount;
-  uint firstVertex;
+  uint firstIndex;
+  int vertexOffset;
   uint firstInstance;
   PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
 };

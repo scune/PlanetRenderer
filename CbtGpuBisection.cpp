@@ -207,12 +207,19 @@ void CbtBisection::CreateBuffers(const Cbt::Halfedge* halfedges,
            "Failed to create bisector command buffer!");
 
   mVertexCache.size = sizeof(Cbt::PlanetVertex) * 3 * BISECTOR_MAX_COUNT +
-                      sizeof(VkDrawIndirectCommand);
+                      sizeof(VkDrawIndexedIndirectCommand);
   mVertexCache.usageFlags =
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
   mVertexCache.memProperties = memProps;
   IfNThrow(CreateBuffer(mVertexCache), "Failed to create vertex cache buffer!");
+
+  mVertexIndices.size = sizeof(uint32_t) * 3 * BISECTOR_MAX_COUNT;
+  mVertexIndices.usageFlags =
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+  mVertexIndices.memProperties = memProps;
+  IfNThrow(CreateBuffer(mVertexIndices),
+           "Failed to create vertex indices buffer!");
 
   mGlobalUpdate.size = sizeof(GlobalUpdate_t);
   mGlobalUpdate.usageFlags =
@@ -263,7 +270,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer,
              "Failed to update descriptor set!");
   }
 
-  DescriptorBuilder<12> builder;
+  DescriptorBuilder<13> builder;
   builder.AddSSBO(mCbt, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mPointerCache, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mBisectors, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -276,6 +283,7 @@ void CbtBisection::CreateDescriptors(const Buffer& vertexBuffer,
   builder.AddSSBO(mDebugBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddSSBO(mDispatchBuffer, VK_SHADER_STAGE_COMPUTE_BIT);
   builder.AddCombImgSampler(textures, VK_SHADER_STAGE_COMPUTE_BIT);
+  builder.AddSSBO(mVertexIndices, VK_SHADER_STAGE_COMPUTE_BIT);
 
   auto poolRes = builder.BuildDescriptorPool();
   if (poolRes.has_value())
@@ -1203,6 +1211,7 @@ void CbtBisection::Destroy()
   DestroyBuffer(mAllocCounter);
   DestroyBuffer(mCommands);
   DestroyBuffer(mVertexCache);
+  DestroyBuffer(mVertexIndices);
   DestroyBuffer(mGlobalUpdate);
   DestroyBuffer(mDebugBuffer);
 

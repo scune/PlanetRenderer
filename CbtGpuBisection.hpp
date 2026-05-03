@@ -24,10 +24,8 @@ public:
   void RecordCmds(VkCommandBuffer cmdBuffer);
   void VertShaderPipeBarrier(VkCommandBuffer cmdBuffer) noexcept;
 
-  inline const Buffer& GetVertexCacheBuffer() const noexcept
-  {
-    return mVertexCache;
-  }
+  const Buffer& GetVertexCacheBuffer() const { return mVertexCache; }
+  const Buffer& GetVertexIndexBuffer() const { return mVertexIndices; }
 
 private:
   bool mNoUpdate{false};
@@ -56,6 +54,7 @@ private:
   Buffer mAllocCounter{};
   Buffer mCommands{};
   Buffer mVertexCache{};
+  Buffer mVertexIndices{};
   Buffer mGlobalUpdate{};
   Buffer mDebugBuffer{};
   const uint32_t mDebugBufferSize{10000};

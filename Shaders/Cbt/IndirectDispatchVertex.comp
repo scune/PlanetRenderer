@@ -8,9 +8,10 @@ layout(local_size_x = 1) in;
 
 layout(binding = 7, scalar) readonly buffer OutVertices
 {
-  uint vertexCount;
+  uint indexCount;
   uint instanceCount;
-  uint firstVertex;
+  uint firstIndex;
+  int vertexOffset;
   uint firstInstance;
 };
 
@@ -25,8 +26,8 @@ layout(binding = 10) writeonly buffer DispatchBuffer
 
 void main()
 {
-  uint parentCount = (vertexCount + 2) / 3;
-  d.x = (vertexCount + parentCount + 63) / 64;
+  uint parentCount = (indexCount + 2) / 3;
+  d.x = (indexCount + parentCount + 63) / 64;
   d.y = 1;
   d.z = 1;
 }

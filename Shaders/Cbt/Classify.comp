@@ -30,7 +30,7 @@ layout(binding = 2, scalar) buffer Bisectors
 
 layout(binding = 7, scalar) readonly buffer OutVertices
 {
-  layout(offset = 16)
+  layout(offset = 20)
   PlanetVertex cachedVertices[3 * BISECTOR_MAX_COUNT];
 };
 
@@ -51,6 +51,11 @@ layout(binding = 9) buffer DebugBuffer
 {
   ivec2 debugData[];
 };
+
+layout(binding = 12) readonly buffer VertexIndices
+{
+  uint vertexIndices[];
+}
 
 layout(push_constant, scalar) uniform PushConstant
 {
@@ -225,15 +230,20 @@ void main()
   if (gl_GlobalInvocationID.x >= cbt.tree[1])
     return;
 
-  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
-  uint64_t bisectorIndex = bisectors[bisectorID].index;
-  uint twinID = bisectors[bisectorID].twin;
-  uint depth = BisectorDepth(bisectorIndex, minDepth);
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint64_t bisectorIndex = bisectors[bisectorID].index;
+  const uint twinID = bisectors[bisectorID].twin;
+  const uint depth = BisectorDepth(bisectorIndex, minDepth);
+
+  uint vIndexOffset = gl_GlobalInvocationID.x * 3;
+  uvec3 vIndices = uvec3(vertexIndices[vIndexOffset] + 0,
+                         vertexIndices[vIndexOffset] + 1,
+                         vertexIndices[vIndexOffset] + 2);
 
   vec4 v[3];
-  v[0] = cachedVertices[gl_GlobalInvocationID.x * 3].pos;
-  v[1] = cachedVertices[gl_GlobalInvocationID.x * 3 + 1].pos;
-  v[2] = cachedVertices[gl_GlobalInvocationID.x * 3 + 2].pos;
+  v[0] = cachedVertices[vIndices[0]].pos;
+  v[1] = cachedVertices[vIndices[1]].pos;
+  v[2] = cachedVertices[vIndices[2]].pos;
 
   uint flags = 0;
   uint cmd = Classify(v, depth, twinID, bisectorID, flags);

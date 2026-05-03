@@ -50,23 +50,11 @@ void PlanetRenderer::CreateBuffers()
   mVertexBuffer.memProperties = memProps;
   IfNThrow(CreateBuffer(mVertexBuffer), "Failed to create vertex buffer!");
 
-  mIndexBuffer.size = sizeof(uint32_t) * 32768;
-  mIndexBuffer.usageFlags =
-      VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  mIndexBuffer.memProperties = memProps;
-  IfNThrow(CreateBuffer(mIndexBuffer), "Failed to create index buffer!");
-
   if (mVertices.size() > 0)
   {
     IfNThrow(BufferCopyToHost(mVertexBuffer, mVertices.data(),
                               VecByteSize(mVertices)),
              "Failed to copy data to vertex buffer!");
-  }
-  if (mIndices.size() > 0)
-  {
-    IfNThrow(
-        BufferCopyToHost(mIndexBuffer, mIndices.data(), VecByteSize(mIndices)),
-        "Failed to copy data to index buffer!");
   }
 
   mSceneData.size = sizeof(SceneData_t);
@@ -476,19 +464,20 @@ void PlanetRenderer::DrawGraphics(VkCommandBuffer cmdBuffer,
                          vertexInputAttributes.data());
 
   // Geometry buffer
-  const VkDeviceSize vertexOffset[1] = {sizeof(VkDrawIndirectCommand)};
+  const VkDeviceSize vertexOffset[1] = {sizeof(VkDrawIndexedIndirectCommand)};
   // vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &mVertexBuffer.handle,
   // vertexOffset);
   vkCmdBindVertexBuffers(cmdBuffer, 0, 1,
                          &mCbtBisection.GetVertexCacheBuffer().handle,
                          vertexOffset);
 
-  // vkCmdBindIndexBuffer(cmdBuffer, mIndexBuffer.handle, 0,
-  // VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(cmdBuffer, mCbtBisection.GetVertexIndexBuffer().handle,
+                       0, VK_INDEX_TYPE_UINT32);
 
   // Draw
-  vkCmdDrawIndirect(cmdBuffer, mCbtBisection.GetVertexCacheBuffer().handle, 0,
-                    1, sizeof(VkDrawIndirectCommand));
+  vkCmdDrawIndexedIndirect(cmdBuffer,
+                           mCbtBisection.GetVertexCacheBuffer().handle, 0, 1,
+                           sizeof(VkDrawIndexedIndirectCommand));
 
   // Transition swapchain
   vkCmdEndRendering(cmdBuffer);
@@ -507,7 +496,6 @@ void PlanetRenderer::Destroy()
   mCbtBisection.Destroy();
 
   DestroyBuffer(mVertexBuffer);
-  DestroyBuffer(mIndexBuffer);
   DestroyBuffer(mSceneData);
   for (uint32_t i = 0; i < (uint32_t)std::size(mTextures); i++)
     DestroyImage(mTextures[i]);

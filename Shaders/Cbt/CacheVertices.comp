@@ -41,9 +41,10 @@ layout(binding = 5) readonly buffer RootVertices
 
 layout(binding = 7, scalar) writeonly buffer OutVertices
 {
-  uint vertexCount;
+  uint indexCount;
   uint instanceCount;
-  uint firstVertex;
+  uint firstIndex;
+  int vertexOffset;
   uint firstInstance;
   PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
 };
@@ -58,6 +59,11 @@ layout(binding = 8) uniform GlobalUpdate
 layout(binding = 9) buffer DebugBuffer
 {
   ivec4 debugData[];
+};
+
+layout(binding = 12) writeonly buffer VertexIndices
+{
+  uint vertexIndices[];
 };
 
 layout(push_constant, scalar) uniform PushConstant
@@ -139,32 +145,96 @@ void main()
   if (gl_GlobalInvocationID.x == 0)
   {
     //debugPrintfEXT("Bisector count: %u", cbt.tree[1]);
-    vertexCount = cbt.tree[1] * 3;
+    indexCount = cbt.tree[1] * 3;
     instanceCount = 1;
   }
 
   if (gl_GlobalInvocationID.x >= cbt.tree[1])
     return;
 
-  uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
-  uint64_t bisectorIndex = bisectors[bisectorID].index;
-  uint bisectorFlags = bisectors[bisectorID].flags;
-  uint depth = BisectorDepth(bisectorIndex, minDepth);
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint64_t bisectorIndex = bisectors[bisectorID].index;
+  const bool bLeft = bool(bisectorIndex & 1ul);
+  const uint bisectorFlags = bisectors[bisectorID].flags;
+  const uint depth = BisectorDepth(bisectorIndex, minDepth);
 
-  vec3 parentVertex = vec3(0.f);
-  mat3 v = BisectorVertices(bisectorIndex, depth, parentVertex);
+  uvec3 indices;
 
-  v[0] = normalize(v[0]);
-  v[1] = normalize(v[1]);
-  v[2] = normalize(v[2]);
-  parentVertex = normalize(parentVertex);
-  const vec3 n = normalize(v[0] + v[1] + v[2]);
+  if (bLeft || depth == 0)
+  {
+    vec3 parentVertex = vec3(0.f);
+    mat3 v = BisectorVertices(bisectorIndex, depth, parentVertex);
 
-  uint vertexOffset = gl_GlobalInvocationID.x * 3;
+    v[0] = normalize(v[0]);
+    v[1] = normalize(v[1]);
+    v[2] = normalize(v[2]);
+    parentVertex = normalize(parentVertex);
+    const vec3 n = normalize(v[0] + v[1] + v[2]);
+
+    uint vertexOffset = bisectorID * 3; // TODO ! gl_GlobalInvocationID.x -> bisectorID
+    [[unroll]]
+    for (uint i = 0; i < 3; i++)
+    {
+      outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);
+      outVertices[vertexOffset + i].normal = vec4(n, 1.f);
+
+      indices[i] = vertexOffset + i;
+    }
+  }
+  else
+  {
+    uint next = bisectors[bisectorID].next;
+    uint prev = bisectors[bisectorID].prev;
+    uint twin = bisectors[bisectorID].twin;
+
+    if (next != BISECTOR_NULLPTR)
+    {
+      uint nextTwin = bisectors[next].twin;
+      if (nextTwin == bisectorID)
+      {
+        indices[1] = nextTwin * 3 + 1;
+        indices[2] = nextTwin * 3 + 0;
+      }
+      else
+      {
+        indices[1] = nextTwin * 3 + 0;
+        indices[2] = nextTwin * 3 + 2;
+      }
+    }
+    if (prev != BISECTOR_NULLPTR)
+    {
+      uint prevTwin = bisectors[prev].twin;
+      if (prevTwin == bisectorID)
+      {
+        indices[0] = prevTwin * 3 + 0;
+        indices[2] = prevTwin * 3 + 1;
+      }
+      else
+      {
+        indices[0] = prevTwin * 3 + 1;
+        indices[2] = prevTwin * 3 + 2;
+      }
+    }
+    if (twin != BISECTOR_NULLPTR)
+    {
+      uint twinTwin = bisectors[twin].twin;
+      if (twinTwin == bisectorID)
+      {
+        indices[0] = twinTwin * 3 + 1;
+        indices[1] = twinTwin * 3 + 0;
+      }
+      else
+      {
+        indices[0] = twinTwin * 3 + 0;
+        indices[1] = twinTwin * 3 + 2;
+      }
+    }
+  }
+
+  uint indexOffset = gl_GlobalInvocationID.x * 3;
   [[unroll]]
   for (uint i = 0; i < 3; i++)
   {
-    outVertices[vertexOffset + i].pos = vec4(v[i], parentVertex[i]);
-    outVertices[vertexOffset + i].normal = vec4(n, 1.f);
+    vertexIndices[indexOffset + i] = indices[i];
   }
 }
