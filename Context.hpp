@@ -99,7 +99,8 @@ public:
 private:
   void CreateWindow(bool force_x11);
   bool m_bGlfwInit{false};
-  const char mWindowTitle[12] = {"VEGA Engine"};
+  static constexpr char mWindowTitle[]{"VEGA Engine"};
+  static constexpr char mWindowArgTitle[]{"VEGA Engine {:>4} Fps"};
   GLFWwindow* mWindow{nullptr};
 
   void NewDeltaTime() noexcept;
@@ -107,8 +108,8 @@ private:
   double mLastFrameTime{};
   double mDeltaTime{};
   double mTitleUpdateTimer{};
-  double mMaxFrameTime{1. / 144.};
-  // double mMaxFrameTime{0.};
+  // double mMaxFrameTime{1. / 144.};
+  double mMaxFrameTime{0.};
   uint32_t mFrameCounter{};
 
 #ifdef DEBUG

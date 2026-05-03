@@ -438,25 +438,6 @@ bool Context::WindowShouldClose() noexcept
          glfwWindowShouldClose(gContext.GetWindow());
 }
 
-inline void FpsToString(uint32_t fps, char* str) noexcept
-{
-  uint32_t temp = fps / 1000;
-  str[0] = temp + '0';
-  // str[0] = (str[0] == '0') ? ' ' : str[0];
-
-  uint32_t temp2 = fps / 100;
-  str[1] = temp2 - temp * 10 + '0';
-  temp = temp2;
-  // str[1] = (str[1] == '0') ? ' ' : str[1];
-
-  temp2 = fps / 10;
-  str[2] = temp2 - temp * 10 + '0';
-  temp = temp2;
-  // str[2] = (str[2] == '0') ? ' ' : str[2];
-
-  str[3] = fps - temp * 10 + '0';
-}
-
 void Context::UpdateWindowTitle() noexcept
 {
   mTitleUpdateTimer += mDeltaTime;
@@ -465,19 +446,10 @@ void Context::UpdateWindowTitle() noexcept
     uint32_t fps =
         std::min<uint32_t>(uint32_t(std::lround(1. / mDeltaTime)), 9999u);
 
-    const char fpsTitle[]{"Fps"};
-    char fpsStr[9] = " -      ";
+    char newTitle[sizeof(mWindowArgTitle) + 4];
+    std::format_to_n(newTitle, sizeof(newTitle), mWindowArgTitle, fps);
 
-    char title[sizeof(mWindowTitle) - 1 + sizeof(fps) - 1 + sizeof(fpsStr)]{};
-    memcpy(title, mWindowTitle, sizeof(mWindowTitle) - 1);
-
-    FpsToString(fps, fpsStr + 3);
-    memcpy(title + sizeof(mWindowTitle) - 1, fpsStr, sizeof(fpsStr) - 1);
-
-    memcpy(title + sizeof(mWindowTitle) - 1 + sizeof(fpsStr) - 1, fpsTitle,
-           sizeof(fpsTitle));
-
-    glfwSetWindowTitle(mWindow, title);
+    glfwSetWindowTitle(mWindow, newTitle);
 
     mTitleUpdateTimer = 0.;
   }

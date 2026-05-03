@@ -3,7 +3,7 @@
 #include "Context.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "Extern/stb_image.h"
 
 std::expected<Image, Textures::Error>
 Textures::LoadFromMem(const void* data, VkExtent2D extent, uint8_t components,
