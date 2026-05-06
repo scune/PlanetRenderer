@@ -1,0 +1,104 @@
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_EXT_debug_printf : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_KHR_shader_subgroup_shuffle_relative : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#ifndef GLSLLANGVALIDATOR
+#extension GL_GOOGLE_include_directive : enable
+#endif // GLSLLANGVALIDATOR
+
+#include "Generic.glsl.hpp"
+#include "../PlanetVertex.glsl.hpp"
+
+layout(local_size_x = 64) in;
+
+layout(binding = 1) readonly buffer PointerCache
+{
+  uint activeBisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 2, scalar) readonly buffer Bisectors
+{
+  Bisector bisectors[BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 7, scalar) buffer OutVertices
+{
+  uint indexCount;
+  uint instanceCount;
+  uint firstIndex;
+  int vertexOffset;
+  uint firstInstance;
+  PlanetVertex outVertices[3 * BISECTOR_MAX_COUNT];
+};
+
+layout(binding = 9) buffer DebugBuffer
+{
+  ivec4 debugData[];
+};
+
+layout(push_constant, scalar) uniform PushConstant
+{
+  layout(offset = 4)
+  uint maxSubdivision;
+  uint minDepth;
+  uint baseBisectorIndex;
+  uint pixelCount;
+  float planetScale;
+  uint fbmFrequency;
+  float fbmAmplitude;
+  float amplitudePercent;
+};
+
+#include "Displacement.glsl"
+
+
+
+void main()
+{
+  if (gl_GlobalInvocationID.x >= cbt.tree[1])
+    return;
+
+  const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
+  const uint64_t bisectorIndex = bisectors[bisectorID].index;
+  const bool bLeft = bool(bisectorIndex & 1ul);
+  const uint depth = BisectorDepth(bisectorIndex, minDepth);
+
+  vec3 v;
+  const uint vertexOffset = bisectorID * 3;
+  if (bLeft || depth == 0)
+  {
+    [[unroll]]
+    for (uint i = 0; i < 3; i++)
+      v[i] = outVertices[vertexOffset + i].pos.w;
+  }
+  else
+  {
+    v = outVertices[vertexOffset].pos.xyz;
+  }
+
+  uint planeID;
+  uint extent3;
+  vec3 cubeWorldPos;
+  vec2 uv = CubeProj(v, planeID, extent3, cubeWorldPos);
+
+  vec3 ad = Terrain(uv, cubeWorldPos, planeID, extent3, v);
+  ad.x *= fbmAmplitude;
+
+  v *= ad.x + planetScale;
+
+  if (bLeft || depth == 0)
+  {
+    [[unroll]]
+    for (uint i = 0; i < 3; i++)
+      outVertices[vertexOffset + i].pos.w = v[i];
+  }
+  else
+  {
+    outVertices[vertexOffset].pos.xyz = v;
+  }
+}

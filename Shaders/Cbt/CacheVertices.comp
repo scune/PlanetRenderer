@@ -140,6 +140,40 @@ mat3 BisectorVertices(const uint64_t bisectorIndex, const uint bisectorDepth, ou
   return currVerts;
 }
 
+vec3 BisectorParentVertices(const uint64_t bisectorIndex, const uint bisectorDepth)
+{
+  const mat3 m0 = mat3(0.f,  0.f,  1.f,
+                       1.f,  0.f,  0.f,
+                       0.5f, 0.5f, 0.f);
+
+  const mat3 m1 = mat3(0.f,  1.f,  0.f,
+                       0.f,  0.f,  1.f,
+                       0.5f, 0.5f, 0.f);
+
+  const uint halfedgeID = uint(bisectorIndex >> bisectorDepth); // Root bisector index
+  const uint64_t h = bisectorIndex; // Halfedge index
+
+  mat3 rootVecs = RootBisectorVertices(halfedgeID);
+
+  mat3 m = mat3(1.f);
+  for (int d = int(bisectorDepth) - 1; d > 0; d--) // Compute subd. matrix
+  {
+    bool b = (h & (1ul << d)) != 0;
+    m *= (b ? m1 : m0);
+  }
+
+  mat3 parentVertices = rootVecs * m;
+  bool b = (h & 1ul) != 0;
+  if (b)
+  {
+    return parentVertices[0];
+  }
+  else
+  {
+    return parentVertices[1];
+  }
+}
+
 void main()
 {
   if (gl_GlobalInvocationID.x == 0)
@@ -155,7 +189,6 @@ void main()
   const uint bisectorID = activeBisectors[gl_GlobalInvocationID.x];
   const uint64_t bisectorIndex = bisectors[bisectorID].index;
   const bool bLeft = bool(bisectorIndex & 1ul);
-  const uint bisectorFlags = bisectors[bisectorID].flags;
   const uint depth = BisectorDepth(bisectorIndex, minDepth);
 
   uvec3 indices;
@@ -229,6 +262,11 @@ void main()
         indices[1] = twinTwin * 3 + 2;
       }
     }
+
+    vec3 parentVertex = BisectorVertices(bisectorIndex, depth);
+
+    uint vertexOffset = bisectorID * 3; // TODO ! gl_GlobalInvocationID.x -> bisectorID
+    outVertices[vertexOffset].pos.xyz = parentVertex;
   }
 
   uint indexOffset = gl_GlobalInvocationID.x * 3;
